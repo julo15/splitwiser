@@ -19,7 +19,8 @@ import {
     getParticipantName as getParticipantNameUtil
 } from './utils/participantHelpers';
 import {
-    calculateItemizedTotal
+    calculateItemizedTotal,
+    calculatePersonItemBreakdown
 } from './utils/expenseCalculations';
 import {
     extractParticipantKeysFromExpense,
@@ -30,7 +31,7 @@ import {
     amountToCents,
     centsToDisplayAmount,
 } from './utils/expenseTransformations';
-import { formatMoney, formatDate } from './utils/formatters';
+import { formatMoney, formatDate, formatItemPercent } from './utils/formatters';
 import { CURRENCIES } from './utils/currencyHelpers';
 import { expensesApi } from './services/api';
 import { offlineExpensesApi } from './services/offlineApi';
@@ -1004,67 +1005,10 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
 
                                                 // For itemized expenses, calculate the breakdown
                                                 if (expense.split_type === 'ITEMIZED' && expense.items && expense.items.length > 0) {
-                                                    // Get regular items assigned to this person
-                                                    const regularItems = expense.items.filter(i => !i.is_tax_tip);
-                                                    const taxItems = expense.items.filter(i => i.is_tax_tip && i.description.toLowerCase().includes('tax') && !i.description.toLowerCase().includes('tip'));
-                                                    const tipItems = expense.items.filter(i => i.is_tax_tip && i.description.toLowerCase().includes('tip') && !i.description.toLowerCase().includes('tax'));
-                                                    const combinedItems = expense.items.filter(i => i.is_tax_tip && i.description.toLowerCase() === 'tax/tip');
-
-                                                    // Calculate subtotal for this person's items
-                                                    let personSubtotal = 0;
-                                                    regularItems.forEach(item => {
-                                                        const isAssigned = item.assignments.some(
-                                                            a => a.user_id === split.user_id && a.is_guest === split.is_guest
-                                                        );
-                                                        if (isAssigned) {
-                                                            // Check if item has custom split type
-                                                            const itemSplitType = (item as any).split_type || 'EQUAL';
-                                                            const itemSplitDetails = (item as any).split_details || {};
-                                                            const personKey = split.is_guest ? `guest_${split.user_id}` : `user_${split.user_id}`;
-
-                                                            if (itemSplitType === 'EQUAL' || item.assignments.length === 1) {
-                                                                // Equal split or single assignee
-                                                                const shareCount = item.assignments.length;
-                                                                personSubtotal += Math.floor(item.price / shareCount);
-                                                            } else if (itemSplitType === 'EXACT') {
-                                                                // Use exact amount
-                                                                const detail = itemSplitDetails[personKey];
-                                                                const amount = detail?.amount || 0;
-                                                                personSubtotal += amount;
-                                                            } else if (itemSplitType === 'PERCENT') {
-                                                                // Use percentage
-                                                                const detail = itemSplitDetails[personKey];
-                                                                const percentage = detail?.percentage || 0;
-                                                                personSubtotal += Math.floor(item.price * (percentage / 100));
-                                                            } else if (itemSplitType === 'SHARES') {
-                                                                // Calculate based on shares
-                                                                let totalShares = 0;
-                                                                item.assignments.forEach((a: any) => {
-                                                                    const key = a.is_guest ? `guest_${a.user_id}` : `user_${a.user_id}`;
-                                                                    const detail = itemSplitDetails[key];
-                                                                    totalShares += detail?.shares || 1;
-                                                                });
-
-                                                                const personShares = itemSplitDetails[personKey]?.shares || 1;
-                                                                if (totalShares > 0) {
-                                                                    personSubtotal += Math.floor((item.price * personShares) / totalShares);
-                                                                }
-                                                            }
-                                                        }
-                                                    });
-
-                                                    // Calculate total subtotal of all regular items
-                                                    const totalSubtotal = regularItems.reduce((sum, item) => sum + item.price, 0);
-
-                                                    // Calculate person's share percentage of the total
-                                                    const sharePercent = totalSubtotal > 0 ? (personSubtotal / totalSubtotal) * 100 : 0;
-
-                                                    // Calculate tax and tip amounts
-                                                    const totalTax = taxItems.reduce((sum, i) => sum + i.price, 0) + combinedItems.reduce((sum, i) => sum + i.price, 0);
-                                                    const totalTip = tipItems.reduce((sum, i) => sum + i.price, 0);
-
-                                                    const personTax = totalSubtotal > 0 ? Math.round(totalTax * (personSubtotal / totalSubtotal)) : 0;
-                                                    const personTip = totalSubtotal > 0 ? Math.round(totalTip * (personSubtotal / totalSubtotal)) : 0;
+                                                    const breakdown = calculatePersonItemBreakdown(
+                                                        { user_id: split.user_id, is_guest: split.is_guest },
+                                                        expense.items
+                                                    );
 
                                                     return (
                                                         <div key={split.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
@@ -1076,21 +1020,38 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                                                     {formatMoney(split.amount_owed, expense.currency)}
                                                                 </span>
                                                             </div>
+                                                            {breakdown.items.length > 0 && (
+                                                                <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1 pl-2 border-l-2 border-gray-200 dark:border-gray-600 mb-2">
+                                                                    {breakdown.items.map((item, idx) => (
+                                                                        <div key={idx} className="flex justify-between">
+                                                                            <span>
+                                                                                {item.description}
+                                                                                {item.isShared && (
+                                                                                    <span className="ml-1 text-gray-400 dark:text-gray-500">
+                                                                                        ({formatItemPercent(item.percent)}%, with {item.sharedWith} {item.sharedWith === 1 ? 'other' : 'others'})
+                                                                                    </span>
+                                                                                )}
+                                                                            </span>
+                                                                            <span>{formatMoney(item.shareAmount, expense.currency)}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                             <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1 pl-2 border-l-2 border-gray-200 dark:border-gray-600">
                                                                 <div className="flex justify-between">
                                                                     <span>Items subtotal</span>
-                                                                    <span>{formatMoney(personSubtotal, expense.currency)}</span>
+                                                                    <span>{formatMoney(breakdown.subtotal, expense.currency)}</span>
                                                                 </div>
-                                                                {totalTax > 0 && (
+                                                                {breakdown.tax > 0 && (
                                                                     <div className="flex justify-between">
-                                                                        <span>+ Tax ({sharePercent.toFixed(1)}% share)</span>
-                                                                        <span>{formatMoney(personTax, expense.currency)}</span>
+                                                                        <span>+ Tax ({breakdown.sharePercent.toFixed(1)}% share)</span>
+                                                                        <span>{formatMoney(breakdown.tax, expense.currency)}</span>
                                                                     </div>
                                                                 )}
-                                                                {totalTip > 0 && (
+                                                                {breakdown.tip > 0 && (
                                                                     <div className="flex justify-between">
-                                                                        <span>+ Tip ({sharePercent.toFixed(1)}% share)</span>
-                                                                        <span>{formatMoney(personTip, expense.currency)}</span>
+                                                                        <span>+ Tip ({breakdown.sharePercent.toFixed(1)}% share)</span>
+                                                                        <span>{formatMoney(breakdown.tip, expense.currency)}</span>
                                                                     </div>
                                                                 )}
                                                             </div>
