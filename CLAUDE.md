@@ -38,7 +38,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `backend/utils/summary_cache.py` - Bounded in-memory TTL cache for public summary
 
 **Receipt Scanning:**
-- `backend/ocr/llm_service.py` - OpenAI GPT-4o vision-based receipt parsing with structured output
+- `backend/ocr/llm_service.py` - LLM vision-based receipt parsing (image or PDF) with structured output
 
 **Database Migrations:**
 - `backend/migrations/` - Migration scripts with helper tools
@@ -86,7 +86,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - Registered members can also be managed for balance aggregation
 - Refresh tokens stored hashed (SHA-256) in database with server-side revocation
 - Itemized expenses use proportional tax/tip distribution
-- Receipt images stored in `data/receipts/` directory (configurable via `DATA_DIR` env var)
+- Receipt uploads (images and PDFs) stored in `data/receipts/` directory (configurable via `DATA_DIR` env var); PDFs are rasterized per-page for the LLM but the original file is preserved
 
 ## Development Commands
 
@@ -164,7 +164,7 @@ ALTER TABLE table_name ADD COLUMN column_name TYPE DEFAULT 'value';
 - `GET /exchange_rates` - Current exchange rates
 
 ### OCR
-- `POST /ocr/scan-receipt` - Upload receipt image, get LLM-extracted items with prices
+- `POST /ocr/scan-receipt` - Upload a receipt image (JPEG/PNG/WebP) or PDF (up to 10 pages, treated as one receipt), get LLM-extracted items with prices
 
 ### Summary
 - `GET /groups/{group_id}/summary` - Per-member consumption totals, group total, time-bucketed series (authenticated members)

@@ -67,10 +67,11 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         setError('');
 
         try {
-            const compressedImage = await compressImage(image, 1920, 1);
+            // PDFs are sent as-is; compressImage only handles raster images.
+            const uploadFile = isPdf ? image : await compressImage(image, 1920, 1);
 
             const formData = new FormData();
-            formData.append('file', compressedImage);
+            formData.append('file', uploadFile);
 
             const token = localStorage.getItem('token');
             const response = await fetch(getApiUrl('ocr/scan-receipt'), {

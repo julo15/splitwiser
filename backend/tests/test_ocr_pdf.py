@@ -136,6 +136,24 @@ def test_oversized_pdf_rejected(mock_llm):
     mock_llm.assert_not_called()
 
 
+def test_rasterize_clamps_huge_page_resolution():
+    """A PDF with an enormous page box is clamped to MAX_RENDER_PX (DoS guard)."""
+    from PIL import Image
+    from routers.ocr import _rasterize_pdf, MAX_RENDER_PX
+
+    doc = fitz.open()
+    doc.new_page(width=14400, height=14400)  # PDF max page dimension
+    pdf = doc.tobytes()
+    doc.close()
+
+    pages = _rasterize_pdf(pdf)
+    assert len(pages) == 1
+    png_bytes, mime = pages[0]
+    assert mime == "image/png"
+    img = Image.open(io.BytesIO(png_bytes))
+    assert max(img.size) <= MAX_RENDER_PX
+
+
 def test_image_still_accepted_after_pdf_support(mock_llm):
     """Regression: the image path still works (single page, detected format)."""
     from PIL import Image

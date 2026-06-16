@@ -29,9 +29,14 @@ FORMAT_MAP = {
 # Maximum number of pages allowed in an uploaded PDF.
 MAX_PDF_PAGES = 10
 
-# Zoom factor for rasterizing PDF pages (~144 DPI at 2.0). High enough for the LLM
-# to read receipt text, bounded so a small multi-page PDF can't blow up memory.
+# Target zoom for rasterizing PDF pages (~144 DPI at 2.0) — high enough for the LLM
+# to read receipt text. This is only an upper bound; per-page zoom is reduced so the
+# longest rendered side never exceeds MAX_RENDER_PX (a small PDF can declare a huge
+# page box, so capping zoom alone does not bound output resolution / memory).
 PDF_RENDER_ZOOM = 2.0
+
+# Hard cap on the longest rendered side, in pixels, to bound pixmap memory.
+MAX_RENDER_PX = 3000
 
 router = APIRouter(tags=["ocr"])
 
@@ -44,10 +49,15 @@ def _rasterize_pdf(pdf_bytes: bytes) -> list[tuple[bytes, str]]:
     """
     try:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    except Exception:
+    except Exception as exc:
+        print(f"PDF open error: {exc}")
         raise HTTPException(status_code=400, detail="Invalid PDF file.")
 
     try:
+        if doc.needs_pass:
+            raise HTTPException(
+                status_code=400, detail="Password-protected PDFs are not supported."
+            )
         if doc.page_count == 0:
             raise HTTPException(status_code=400, detail="Invalid PDF file.")
         if doc.page_count > MAX_PDF_PAGES:
@@ -56,11 +66,20 @@ def _rasterize_pdf(pdf_bytes: bytes) -> list[tuple[bytes, str]]:
                 detail=f"PDF has too many pages ({doc.page_count}). Maximum is {MAX_PDF_PAGES}.",
             )
 
-        matrix = fitz.Matrix(PDF_RENDER_ZOOM, PDF_RENDER_ZOOM)
         pages = []
-        for page in doc:
-            pixmap = page.get_pixmap(matrix=matrix)
-            pages.append((pixmap.tobytes("png"), "image/png"))
+        try:
+            for page in doc:
+                # Reduce zoom for oversized pages so the longest rendered side stays
+                # within MAX_RENDER_PX, bounding pixmap memory. Never upscale past the
+                # target zoom.
+                longest_pt = max(page.rect.width, page.rect.height) or 1
+                zoom = min(PDF_RENDER_ZOOM, MAX_RENDER_PX / longest_pt)
+                matrix = fitz.Matrix(zoom, zoom)
+                pixmap = page.get_pixmap(matrix=matrix)
+                pages.append((pixmap.tobytes("png"), "image/png"))
+        except Exception as exc:
+            print(f"PDF rasterization error: {exc}")
+            raise HTTPException(status_code=400, detail="Could not render PDF.")
         return pages
     finally:
         doc.close()
@@ -68,8 +87,8 @@ def _rasterize_pdf(pdf_bytes: bytes) -> list[tuple[bytes, str]]:
 
 @router.post("/ocr/scan-receipt", dependencies=[Depends(ocr_rate_limiter)])
 async def scan_receipt(
+    current_user: Annotated[models.User, Depends(get_current_user)],
     file: UploadFile = File(...),
-    current_user: Annotated[models.User, Depends(get_current_user)] = None,
 ):
     """
     Scan a receipt using an LLM (GPT-4o) and return extracted items.
@@ -89,7 +108,6 @@ async def scan_receipt(
         # PDF: rasterize every page and treat the whole document as one receipt.
         pages = _rasterize_pdf(upload_content)
         filename = f"{uuid.uuid4()}.pdf"
-        parse_input = pages
     else:
         # Image: detect format from content (not the filename) for security.
         try:
@@ -109,7 +127,7 @@ async def scan_receipt(
 
         fmt = FORMAT_MAP[img_format]
         filename = f"{uuid.uuid4()}.{fmt['ext']}"
-        parse_input = [(upload_content, fmt["mime"])]
+        pages = [(upload_content, fmt["mime"])]
 
     # Save the original upload (preserve the source artifact).
     file_path = os.path.join(RECEIPT_DIR, filename)
@@ -118,7 +136,7 @@ async def scan_receipt(
 
     # Call LLM
     try:
-        result = parse_receipt(parse_input)
+        result = parse_receipt(pages)
     except RuntimeError as exc:
         # Missing API key or config error
         raise HTTPException(status_code=500, detail=str(exc))

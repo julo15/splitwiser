@@ -40,7 +40,7 @@ def _get_client() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
-def parse_receipt(pages) -> dict:
+def parse_receipt(pages: list[tuple[bytes, str]]) -> dict:
     """Parse a receipt using Google Gemini vision.
 
     ``pages`` is a list of ``(image_bytes, mime_type)`` tuples. Multiple pages are
