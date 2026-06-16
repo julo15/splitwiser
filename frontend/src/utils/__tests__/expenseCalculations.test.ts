@@ -1,12 +1,13 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import type { Participant, ExpenseItem } from '../../types/expense';
+import type { Participant, ExpenseItem, ExpenseItemDetail } from '../../types/expense';
 import {
     calculateEqualSplit,
     calculateExactSplit,
     calculatePercentSplit,
     calculateSharesSplit,
     calculateItemizedTotal,
+    calculatePersonItemBreakdown,
 } from '../expenseCalculations';
 
 const user1: Participant = { id: 1, name: 'Alice', isGuest: false };
@@ -179,5 +180,218 @@ describe('calculateItemizedTotal', () => {
         const result = calculateItemizedTotal(items, '1.50', '2.50');
         // 0 + 150 + 250 = 400 cents = $4.00
         expect(result).toBe('4.00');
+    });
+});
+
+describe('calculatePersonItemBreakdown', () => {
+    // Helper to build a minimal ExpenseItemDetail. split_type/split_details are
+    // read by the helper via casts (they aren't on the public type), so we attach
+    // them through a loosely-typed builder.
+    let nextId = 1;
+    const makeItem = (
+        description: string,
+        price: number,
+        assignments: Array<{ user_id: number; is_guest: boolean; user_name?: string }>,
+        opts: {
+            is_tax_tip?: boolean;
+            split_type?: 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES';
+            split_details?: { [key: string]: { amount?: number; percentage?: number; shares?: number } };
+        } = {}
+    ): ExpenseItemDetail => {
+        const item = {
+            id: nextId++,
+            expense_id: 100,
+            description,
+            price,
+            is_tax_tip: opts.is_tax_tip ?? false,
+            assignments: assignments.map(a => ({
+                user_id: a.user_id,
+                is_guest: a.is_guest,
+                user_name: a.user_name ?? `User ${a.user_id}`,
+            })),
+            ...(opts.split_type ? { split_type: opts.split_type } : {}),
+            ...(opts.split_details ? { split_details: opts.split_details } : {}),
+        };
+        return item as unknown as ExpenseItemDetail;
+    };
+
+    const alice = { user_id: 1, is_guest: false };
+    const bob = { user_id: 2, is_guest: false };
+
+    it('gives a single assignee the full item price as their share', () => {
+        const items = [makeItem('Pizza', 1000, [alice])];
+        const result = calculatePersonItemBreakdown(alice, items);
+        expect(result.items).toEqual([
+            { description: 'Pizza', shareAmount: 1000, percent: 100, isShared: false, sharedWith: 0 },
+        ]);
+        expect(result.subtotal).toBe(1000);
+        expect(result.tax).toBe(0);
+        expect(result.tip).toBe(0);
+        // Single assignee => 100%, not shared.
+        expect(result.items[0].percent).toBe(100);
+        expect(result.items[0].isShared).toBe(false);
+        // Solo assignee => no other assignees.
+        expect(result.items[0].sharedWith).toBe(0);
+    });
+
+    it('splits one item EQUALLY between two people (floor)', () => {
+        const items = [makeItem('Pizza', 1000, [alice, bob])];
+        // floor(1000 / 2) = 500 for each
+        const aliceResult = calculatePersonItemBreakdown(alice, items);
+        const bobResult = calculatePersonItemBreakdown(bob, items);
+        expect(aliceResult.items).toEqual([
+            { description: 'Pizza', shareAmount: 500, percent: 50, isShared: true, sharedWith: 1 },
+        ]);
+        expect(aliceResult.subtotal).toBe(500);
+        expect(bobResult.items).toEqual([
+            { description: 'Pizza', shareAmount: 500, percent: 50, isShared: true, sharedWith: 1 },
+        ]);
+        expect(bobResult.subtotal).toBe(500);
+        // EQUAL 2-way => 50% each, shared.
+        expect(aliceResult.items[0].percent).toBe(50);
+        expect(aliceResult.items[0].isShared).toBe(true);
+        expect(bobResult.items[0].percent).toBe(50);
+        expect(bobResult.items[0].isShared).toBe(true);
+        // 2-way split => 1 other assignee each.
+        expect(aliceResult.items[0].sharedWith).toBe(1);
+        expect(bobResult.items[0].sharedWith).toBe(1);
+    });
+
+    it('splits one item EQUALLY among three people with a fractional percent', () => {
+        const items = [makeItem('Pizza', 999, [alice, bob, { user_id: 3, is_guest: false }])];
+        const aliceResult = calculatePersonItemBreakdown(alice, items);
+        // EQUAL 3-way => 100/3 % each, shared.
+        expect(aliceResult.items[0].percent).toBeCloseTo(100 / 3, 5);
+        expect(aliceResult.items[0].isShared).toBe(true);
+        // 3-way split => 2 other assignees.
+        expect(aliceResult.items[0].sharedWith).toBe(2);
+    });
+
+    it('uses split_details.amount for an EXACT per-item split', () => {
+        const items = [
+            makeItem('Shared Platter', 1000, [alice, bob], {
+                split_type: 'EXACT',
+                split_details: { user_1: { amount: 700 }, user_2: { amount: 300 } },
+            }),
+        ];
+        const aliceResult = calculatePersonItemBreakdown(alice, items);
+        const bobResult = calculatePersonItemBreakdown(bob, items);
+        expect(aliceResult.items).toEqual([
+            { description: 'Shared Platter', shareAmount: 700, percent: 70, isShared: true, sharedWith: 1 },
+        ]);
+        expect(aliceResult.subtotal).toBe(700);
+        expect(bobResult.items).toEqual([
+            { description: 'Shared Platter', shareAmount: 300, percent: 30, isShared: true, sharedWith: 1 },
+        ]);
+        expect(bobResult.subtotal).toBe(300);
+        // EXACT => personAmount / price * 100.
+        expect(aliceResult.items[0].percent).toBe((700 / 1000) * 100);
+        expect(bobResult.items[0].percent).toBe((300 / 1000) * 100);
+        expect(aliceResult.items[0].isShared).toBe(true);
+    });
+
+    it('uses floor(price * pct/100) for a PERCENT per-item split', () => {
+        const items = [
+            makeItem('Combo', 1000, [alice, bob], {
+                split_type: 'PERCENT',
+                split_details: { user_1: { percentage: 33 }, user_2: { percentage: 67 } },
+            }),
+        ];
+        const aliceResult = calculatePersonItemBreakdown(alice, items);
+        const bobResult = calculatePersonItemBreakdown(bob, items);
+        // floor(1000 * 33/100) = 330, floor(1000 * 67/100) = 670
+        expect(aliceResult.items).toEqual([
+            { description: 'Combo', shareAmount: 330, percent: 33, isShared: true, sharedWith: 1 },
+        ]);
+        expect(bobResult.items).toEqual([
+            { description: 'Combo', shareAmount: 670, percent: 67, isShared: true, sharedWith: 1 },
+        ]);
+        // PERCENT => the configured percentage.
+        expect(aliceResult.items[0].percent).toBe(33);
+        expect(bobResult.items[0].percent).toBe(67);
+        expect(aliceResult.items[0].isShared).toBe(true);
+    });
+
+    it('uses floor(price * personShares / totalShares) for a SHARES per-item split', () => {
+        const items = [
+            makeItem('Bottle', 1000, [alice, bob], {
+                split_type: 'SHARES',
+                split_details: { user_1: { shares: 2 }, user_2: { shares: 1 } },
+            }),
+        ];
+        const aliceResult = calculatePersonItemBreakdown(alice, items);
+        const bobResult = calculatePersonItemBreakdown(bob, items);
+        // totalShares = 3. Alice: floor(1000 * 2/3) = 666, Bob: floor(1000 * 1/3) = 333
+        expect(aliceResult.items).toEqual([
+            { description: 'Bottle', shareAmount: 666, percent: (2 / 3) * 100, isShared: true, sharedWith: 1 },
+        ]);
+        expect(bobResult.items).toEqual([
+            { description: 'Bottle', shareAmount: 333, percent: (1 / 3) * 100, isShared: true, sharedWith: 1 },
+        ]);
+        // SHARES => personShares / totalShares * 100.
+        expect(aliceResult.items[0].percent).toBe((2 / 3) * 100);
+        expect(bobResult.items[0].percent).toBe((1 / 3) * 100);
+        expect(aliceResult.items[0].isShared).toBe(true);
+    });
+
+    it('returns empty items and zero subtotal when person is assigned nothing', () => {
+        const items = [makeItem('Pizza', 1000, [alice])];
+        const result = calculatePersonItemBreakdown(bob, items);
+        expect(result.items).toEqual([]);
+        expect(result.subtotal).toBe(0);
+        expect(result.tax).toBe(0);
+        expect(result.tip).toBe(0);
+        expect(result.sharePercent).toBe(0);
+    });
+
+    it('excludes tax/tip items from items but distributes them proportionally', () => {
+        // Regular items: Alice $3.00, Bob $1.00 => totalSubtotal 400.
+        // Tax $0.50 (50), Tip $0.80 (80).
+        const items = [
+            makeItem('Steak', 300, [alice]),
+            makeItem('Salad', 100, [bob]),
+            makeItem('Tax', 50, [], { is_tax_tip: true }),
+            makeItem('Tip', 80, [], { is_tax_tip: true }),
+        ];
+        const aliceResult = calculatePersonItemBreakdown(alice, items);
+        const bobResult = calculatePersonItemBreakdown(bob, items);
+
+        // Item list excludes tax/tip.
+        expect(aliceResult.items).toEqual([
+            { description: 'Steak', shareAmount: 300, percent: 100, isShared: false, sharedWith: 0 },
+        ]);
+        expect(bobResult.items).toEqual([
+            { description: 'Salad', shareAmount: 100, percent: 100, isShared: false, sharedWith: 0 },
+        ]);
+
+        // Tax: round(50 * 300/400) = round(37.5) = 38; round(50 * 100/400) = round(12.5) = 13
+        expect(aliceResult.tax).toBe(38);
+        expect(bobResult.tax).toBe(13);
+        // Tip: round(80 * 300/400) = round(60) = 60; round(80 * 100/400) = round(20) = 20
+        expect(aliceResult.tip).toBe(60);
+        expect(bobResult.tip).toBe(20);
+        // sharePercent: 300/400 = 75%, 100/400 = 25%
+        expect(aliceResult.sharePercent).toBe(75);
+        expect(bobResult.sharePercent).toBe(25);
+    });
+
+    it('distinguishes a group guest from a registered user with the same numeric id', () => {
+        const registered = { user_id: 1, is_guest: false };
+        const guest = { user_id: 1, is_guest: true };
+        const items = [
+            makeItem('Item A', 500, [{ user_id: 1, is_guest: false }]),
+            makeItem('Item B', 700, [{ user_id: 1, is_guest: true }]),
+        ];
+        const registeredResult = calculatePersonItemBreakdown(registered, items);
+        const guestResult = calculatePersonItemBreakdown(guest, items);
+
+        expect(registeredResult.items).toEqual([
+            { description: 'Item A', shareAmount: 500, percent: 100, isShared: false, sharedWith: 0 },
+        ]);
+        expect(registeredResult.subtotal).toBe(500);
+        expect(guestResult.items).toEqual([
+            { description: 'Item B', shareAmount: 700, percent: 100, isShared: false, sharedWith: 0 },
+        ]);
+        expect(guestResult.subtotal).toBe(700);
     });
 });
