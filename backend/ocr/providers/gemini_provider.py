@@ -40,16 +40,23 @@ def _get_client() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
-def parse_receipt(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
-    """Parse a receipt image using Google Gemini vision."""
+def parse_receipt(pages: list[tuple[bytes, str]]) -> dict:
+    """Parse a receipt using Google Gemini vision.
+
+    ``pages`` is a list of ``(image_bytes, mime_type)`` tuples. Multiple pages are
+    sent in a single call and treated as one receipt.
+    """
     client = _get_client()
+
+    contents = [
+        types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+        for image_bytes, mime_type in pages
+    ]
+    contents.append("Extract all items from this receipt.")
 
     response = client.models.generate_content(
         model="gemini-2.0-flash",
-        contents=[
-            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-            "Extract all items from this receipt.",
-        ],
+        contents=contents,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
             temperature=0,

@@ -29,6 +29,7 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
     const [phase, setPhase] = useState<Phase>('upload');
     const [image, setImage] = useState<File | null>(null);
     const [imageUrl, setImageUrl] = useState<string>('');
+    const [isPdf, setIsPdf] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string>('');
 
@@ -51,8 +52,11 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
             const file = e.target.files[0];
             setImage(file);
             setError('');
+            const pdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+            setIsPdf(pdf);
             if (imageUrl) URL.revokeObjectURL(imageUrl);
-            setImageUrl(URL.createObjectURL(file));
+            // A blob URL can't be rendered in an <img>, so only create one for images.
+            setImageUrl(pdf ? '' : URL.createObjectURL(file));
         }
     };
 
@@ -63,10 +67,11 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         setError('');
 
         try {
-            const compressedImage = await compressImage(image, 1920, 1);
+            // PDFs are sent as-is; compressImage only handles raster images.
+            const uploadFile = isPdf ? image : await compressImage(image, 1920, 1);
 
             const formData = new FormData();
-            formData.append('file', compressedImage);
+            formData.append('file', uploadFile);
 
             const token = localStorage.getItem('token');
             const response = await fetch(getApiUrl('ocr/scan-receipt'), {
@@ -195,7 +200,7 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
                         {!image && (
                             <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                                 <p className="text-sm text-blue-700 dark:text-blue-400">
-                                    Take a clear photo of your receipt. The AI will automatically detect and itemize all purchases.
+                                    Take a clear photo of your receipt, or upload a PDF. The AI will automatically detect and itemize all purchases.
                                 </p>
                             </div>
                         )}
@@ -206,7 +211,7 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
                                 <input
                                     ref={fileInputRef}
                                     type="file"
-                                    accept="image/*"
+                                    accept="image/*,application/pdf"
                                     onChange={handleImageChange}
                                     className="block w-full text-sm text-gray-500 dark:text-gray-400
                                         file:mr-4 file:py-2 file:px-4
@@ -232,6 +237,15 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
                                     alt="Receipt preview"
                                     className="max-w-full max-h-80 mx-auto rounded border border-gray-300 dark:border-gray-600"
                                 />
+                            </div>
+                        )}
+
+                        {isPdf && image && (
+                            <div className="mb-4 flex items-center gap-3 p-4 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/40">
+                                <svg className="h-8 w-8 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                    <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7.414A2 2 0 0017.414 6L14 2.586A2 2 0 0012.586 2H4zm5 10a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
+                                </svg>
+                                <span className="text-sm text-gray-700 dark:text-gray-300 break-all">{image.name}</span>
                             </div>
                         )}
 
@@ -285,6 +299,14 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
                                     />
                                 </div>
                             </details>
+                        )}
+                        {isPdf && image && (
+                            <div className="mb-4 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                                <svg className="h-4 w-4 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                    <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7.414A2 2 0 0017.414 6L14 2.586A2 2 0 0012.586 2H4z" clipRule="evenodd" />
+                                </svg>
+                                <span className="break-all">Scanned from {image.name}</span>
+                            </div>
                         )}
 
                         {/* Items list */}
