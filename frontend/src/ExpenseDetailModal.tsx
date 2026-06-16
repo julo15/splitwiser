@@ -31,19 +31,12 @@ import {
     amountToCents,
     centsToDisplayAmount,
 } from './utils/expenseTransformations';
-import { formatMoney, formatDate } from './utils/formatters';
+import { formatMoney, formatDate, formatItemPercent } from './utils/formatters';
 import { CURRENCIES } from './utils/currencyHelpers';
 import { expensesApi } from './services/api';
 import { offlineExpensesApi } from './services/offlineApi';
 import { useSync } from './contexts/SyncContext';
 import { getApiUrl } from './api';
-
-// Format a per-item share percentage: integer when whole, otherwise one decimal
-// (e.g. 50 -> "50", 33.333 -> "33.3").
-const formatItemPercent = (percent: number): string => {
-    const rounded = Math.round(percent * 10) / 10;
-    return Number.isInteger(rounded) ? `${rounded}` : `${rounded.toFixed(1)}`;
-};
 
 interface ExpenseDetailModalProps {
     isOpen: boolean;

@@ -60,6 +60,8 @@ export interface ExpenseItemDetail {
     price: number;
     is_tax_tip: boolean;
     assignments: Array<ItemAssignment & { user_name: string; expense_guest_id?: number }>;
+    split_type?: 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES'; // How to split this item among assignees
+    split_details?: { [key: string]: { amount?: number; percentage?: number; shares?: number } }; // Split details keyed by "user_{id}" or "guest_{id}"
 }
 
 export interface ExpenseWithSplits {

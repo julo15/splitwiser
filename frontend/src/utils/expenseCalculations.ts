@@ -167,6 +167,11 @@ export interface PersonItemBreakdown {
  * Calculate the per-person breakdown of an itemized expense: which regular items
  * are assigned to the person (with their per-item share) plus their proportional
  * tax/tip. Ports the math previously inlined in ExpenseDetailModal verbatim.
+ *
+ * Note: this intentionally does NOT reuse the file's calculate*Split helpers. It
+ * computes an independent per-item floor share with no remainder reconciliation,
+ * because the headline owed total is sourced from split.amount_owed (authoritative)
+ * rather than recomputed here.
  */
 export const calculatePersonItemBreakdown = (
     person: { user_id: number; is_guest: boolean },
@@ -187,8 +192,8 @@ export const calculatePersonItemBreakdown = (
         );
         if (isAssigned) {
             // Check if item has custom split type
-            const itemSplitType = (item as any).split_type || 'EQUAL';
-            const itemSplitDetails = (item as any).split_details || {};
+            const itemSplitType = item.split_type || 'EQUAL';
+            const itemSplitDetails = item.split_details || {};
             const personKey = person.is_guest ? `guest_${person.user_id}` : `user_${person.user_id}`;
 
             const isShared = item.assignments.length > 1;
@@ -198,7 +203,7 @@ export const calculatePersonItemBreakdown = (
             let percent = 0;
             if (item.assignments.length === 1) {
                 // Single assignee gets the whole item.
-                shareAmount = Math.floor(item.price / 1);
+                shareAmount = item.price;
                 percent = 100;
             } else if (itemSplitType === 'EQUAL') {
                 // Equal split among assignees.
@@ -220,7 +225,7 @@ export const calculatePersonItemBreakdown = (
             } else if (itemSplitType === 'SHARES') {
                 // Calculate based on shares
                 let totalShares = 0;
-                item.assignments.forEach((a: any) => {
+                item.assignments.forEach(a => {
                     const key = a.is_guest ? `guest_${a.user_id}` : `user_${a.user_id}`;
                     const detail = itemSplitDetails[key];
                     totalShares += detail?.shares || 1;
