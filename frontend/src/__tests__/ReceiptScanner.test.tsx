@@ -115,3 +115,305 @@ describe('ReceiptScanner upload', () => {
         expect(mockCompressImage).toHaveBeenCalledWith(pngFile, 1920, 1);
     });
 });
+
+describe('ReceiptScanner paste', () => {
+    let fetchMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+        mockCompressImage.mockClear();
+        mockCompressImage.mockImplementation(async (file: File) => file);
+
+        fetchMock = vi.fn(async () => ({
+            ok: true,
+            json: async () => scanResult,
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+        localStorage.setItem('token', 'test-token');
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+        localStorage.clear();
+        // Remove any clipboard stub so it doesn't leak between tests.
+        if ('clipboard' in navigator) {
+            Reflect.deleteProperty(navigator, 'clipboard');
+        }
+    });
+
+    // Minimal shape of the synthetic clipboardData payloads used in these tests.
+    type PasteData = {
+        items?: { type: string; getAsFile(): File | null }[];
+        files?: File[];
+    };
+
+    // Minimal shape of the ClipboardItems returned by navigator.clipboard.read().
+    type ClipboardReadItem = { types: string[]; getType(type: string): Promise<Blob> };
+    type ClipboardRead = () => Promise<ClipboardReadItem[]>;
+
+    // happy-dom lacks a real ClipboardEvent, so construct a plain Event and attach
+    // a synthetic clipboardData payload.
+    function firePaste(clipboardData: PasteData) {
+        const ev = new Event('paste', { bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'clipboardData', { value: clipboardData });
+        document.dispatchEvent(ev);
+    }
+
+    // Stub navigator.clipboard.read to resolve the given items.
+    function stubClipboardRead(read: ClipboardRead | undefined) {
+        Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: read === undefined ? {} : { read },
+        });
+    }
+
+    it('adopts a keyboard-pasted image and scans it', async () => {
+        const onItemsDetected = vi.fn();
+        render(<ReceiptScanner onItemsDetected={onItemsDetected} onClose={() => {}} />);
+
+        const pngFile = new File(['fake-png-bytes'], 'pasted-receipt.png', {
+            type: 'image/png',
+        });
+        firePaste({
+            items: [
+                {
+                    type: 'image/png',
+                    getAsFile: () => pngFile,
+                },
+            ],
+            files: [pngFile],
+        });
+
+        // Preview shows the pasted filename.
+        await waitFor(() =>
+            expect(screen.getByText(/Selected: pasted-receipt\.png/i)).toBeInTheDocument()
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+        // Pasted images take the compression path (not the PDF path).
+        expect(mockCompressImage).toHaveBeenCalledTimes(1);
+
+        const [url] = fetchMock.mock.calls[0];
+        expect(String(url)).toContain('ocr/scan-receipt');
+
+        // Reached the review phase.
+        await waitFor(() =>
+            expect(screen.getByText(/Detected Items/i)).toBeInTheDocument()
+        );
+    });
+
+    it('adopts an image via the "Paste from clipboard" button', async () => {
+        const onItemsDetected = vi.fn();
+        render(<ReceiptScanner onItemsDetected={onItemsDetected} onClose={() => {}} />);
+
+        stubClipboardRead(
+            vi.fn(async () => [
+                {
+                    types: ['image/png'],
+                    getType: async () => new Blob(['x'], { type: 'image/png' }),
+                },
+            ])
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /paste from clipboard/i }));
+
+        // The synthesized file name is shown, and the Scan button is enabled.
+        await waitFor(() =>
+            expect(screen.getByText(/Selected: pasted-receipt\.png/i)).toBeInTheDocument()
+        );
+        expect(screen.getByRole('button', { name: /scan receipt/i })).not.toBeDisabled();
+    });
+
+    it('shows an error when the clipboard has no image', async () => {
+        const onItemsDetected = vi.fn();
+        render(<ReceiptScanner onItemsDetected={onItemsDetected} onClose={() => {}} />);
+
+        stubClipboardRead(vi.fn(async () => []));
+
+        fireEvent.click(screen.getByRole('button', { name: /paste from clipboard/i }));
+
+        await waitFor(() =>
+            expect(screen.getByText(/No image found on the clipboard/i)).toBeInTheDocument()
+        );
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('shows an error when the clipboard API is unsupported', async () => {
+        const onItemsDetected = vi.fn();
+        render(<ReceiptScanner onItemsDetected={onItemsDetected} onClose={() => {}} />);
+
+        // navigator.clipboard exists but has no read().
+        stubClipboardRead(undefined);
+
+        fireEvent.click(screen.getByRole('button', { name: /paste from clipboard/i }));
+
+        await waitFor(() =>
+            expect(screen.getByText(/isn't supported in this browser/i)).toBeInTheDocument()
+        );
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('ignores a keyboard paste while in the review phase', async () => {
+        const createSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+        vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+
+        const onItemsDetected = vi.fn();
+        render(<ReceiptScanner onItemsDetected={onItemsDetected} onClose={() => {}} />);
+
+        // Adopt an image and scan it to reach the review phase.
+        selectFile(getFileInput(), new File(['a'], 'first.png', { type: 'image/png' }));
+        fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+        await waitFor(() =>
+            expect(screen.getByText(/Detected Items/i)).toBeInTheDocument()
+        );
+
+        // Any further object-URL creation now would mean a paste was adopted.
+        createSpy.mockClear();
+
+        // The paste listener is detached in the review phase, so this is a no-op.
+        firePaste({
+            items: [
+                {
+                    type: 'image/png',
+                    getAsFile: () => new File(['b'], 'second.png', { type: 'image/png' }),
+                },
+            ],
+        });
+
+        // Still in review, and no new preview URL was created.
+        expect(screen.getByText(/Detected Items/i)).toBeInTheDocument();
+        expect(screen.getByText(/Coffee/i)).toBeInTheDocument();
+        expect(createSpy).not.toHaveBeenCalled();
+    });
+
+    it('shows an error and does not fetch when clipboard.read() rejects', async () => {
+        const onItemsDetected = vi.fn();
+        render(<ReceiptScanner onItemsDetected={onItemsDetected} onClose={() => {}} />);
+
+        stubClipboardRead(vi.fn(async () => { throw new Error('denied'); }));
+
+        fireEvent.click(screen.getByRole('button', { name: /paste from clipboard/i }));
+
+        await waitFor(() =>
+            expect(screen.getByText(/Could not read the clipboard/i)).toBeInTheDocument()
+        );
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('treats a PDF pasted via clipboardData.files as a raw upload', async () => {
+        const onItemsDetected = vi.fn();
+        render(<ReceiptScanner onItemsDetected={onItemsDetected} onClose={() => {}} />);
+
+        const pdfFile = new File(['%PDF-1.4 fake'], 'receipt.pdf', {
+            type: 'application/pdf',
+        });
+        // No image item; the file falls back through clipboardData.files.
+        firePaste({ files: [pdfFile] });
+
+        await waitFor(() =>
+            expect(screen.getByText(/Selected: receipt\.pdf/i)).toBeInTheDocument()
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+        // PDFs bypass compression and are sent as-is.
+        expect(mockCompressImage).not.toHaveBeenCalled();
+        const body = fetchMock.mock.calls[0][1].body as FormData;
+        const sentFile = body.get('file') as File;
+        expect(sentFile).toBe(pdfFile);
+        expect(sentFile.type).toBe('application/pdf');
+
+        await waitFor(() =>
+            expect(screen.getByText(/Detected Items/i)).toBeInTheDocument()
+        );
+    });
+
+    it('synthesizes pasted-receipt.png for a nameless screenshot blob', async () => {
+        const onItemsDetected = vi.fn();
+        render(<ReceiptScanner onItemsDetected={onItemsDetected} onClose={() => {}} />);
+
+        firePaste({
+            items: [
+                {
+                    type: 'image/png',
+                    getAsFile: () => new File(['x'], '', { type: 'image/png' }),
+                },
+            ],
+        });
+
+        await waitFor(() =>
+            expect(screen.getByText(/Selected: pasted-receipt\.png/i)).toBeInTheDocument()
+        );
+    });
+
+    it('revokes the previous preview URL before creating a new one', async () => {
+        const createSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+        const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+
+        const onItemsDetected = vi.fn();
+        render(<ReceiptScanner onItemsDetected={onItemsDetected} onClose={() => {}} />);
+
+        selectFile(getFileInput(), new File(['a'], 'first.png', { type: 'image/png' }));
+        await waitFor(() =>
+            expect(screen.getByText(/Selected: first\.png/i)).toBeInTheDocument()
+        );
+
+        selectFile(getFileInput(), new File(['b'], 'second.png', { type: 'image/png' }));
+        await waitFor(() =>
+            expect(screen.getByText(/Selected: second\.png/i)).toBeInTheDocument()
+        );
+
+        // The first URL was revoked and a fresh one created for the second image.
+        expect(createSpy).toHaveBeenCalledTimes(2);
+        expect(revokeSpy).toHaveBeenCalledWith('blob:mock');
+    });
+
+    it('does NOT revoke the preview URL on Re-scan (regression guard)', async () => {
+        const createSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+        const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+
+        const onItemsDetected = vi.fn();
+        render(<ReceiptScanner onItemsDetected={onItemsDetected} onClose={() => {}} />);
+
+        selectFile(getFileInput(), new File(['a'], 'first.png', { type: 'image/png' }));
+        fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+        await waitFor(() =>
+            expect(screen.getByText(/Detected Items/i)).toBeInTheDocument()
+        );
+
+        // Isolate the Re-scan action from any earlier revoke/create calls.
+        revokeSpy.mockClear();
+        createSpy.mockClear();
+
+        fireEvent.click(screen.getByRole('button', { name: /re-scan/i }));
+
+        // Back in the upload phase with the live preview intact.
+        const preview = await screen.findByAltText('Receipt preview');
+        expect(preview).toHaveAttribute('src', 'blob:mock');
+        expect(revokeSpy).not.toHaveBeenCalled();
+        expect(createSpy).not.toHaveBeenCalled();
+    });
+
+    it('revokes the current preview URL when cancelling (onClose path)', async () => {
+        vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+        const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+
+        const onClose = vi.fn();
+        render(<ReceiptScanner onItemsDetected={vi.fn()} onClose={onClose} />);
+
+        selectFile(getFileInput(), new File(['a'], 'first.png', { type: 'image/png' }));
+        await waitFor(() =>
+            expect(screen.getByText(/Selected: first\.png/i)).toBeInTheDocument()
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+        expect(revokeSpy).toHaveBeenCalledWith('blob:mock');
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+});
