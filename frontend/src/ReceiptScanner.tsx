@@ -97,6 +97,22 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
     // Tracks the current preview object URL for revocation without making loadFile
     // depend on imageUrl (which would re-subscribe the paste listener every render).
     const objectUrlRef = useRef<string>('');
+    // Guards async continuations that can resolve after the modal unmounts
+    // (the component is conditionally rendered).
+    const mountedRef = useRef(true);
+    // Mirrors `loading` so the captured paste closure can re-check it per event.
+    const loadingRef = useRef(false);
+    // Prevents overlapping clipboard.read() calls from a double-clicked button.
+    const pastingRef = useRef(false);
+
+    // Revoke and clear the current preview object URL. Centralized so every
+    // genuine teardown site frees the blob (and Re-scan can deliberately skip it).
+    const revokePreviewUrl = useCallback(() => {
+        if (objectUrlRef.current) {
+            URL.revokeObjectURL(objectUrlRef.current);
+            objectUrlRef.current = '';
+        }
+    }, []);
 
     // Shared "adopt this file" path for both the file picker and clipboard paste.
     const loadFile = useCallback((file: File) => {
@@ -104,12 +120,12 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         setError('');
         const pdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
         setIsPdf(pdf);
-        if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+        revokePreviewUrl();
         // A blob URL can't be rendered in an <img>, so only create one for images.
         const url = pdf ? '' : URL.createObjectURL(file);
         objectUrlRef.current = url;
         setImageUrl(url);
-    }, []);
+    }, [revokePreviewUrl]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -118,16 +134,21 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
     };
 
     // Revoke the last preview object URL on unmount so closing the modal mid-flow
-    // doesn't leak it.
+    // doesn't leak it, and flag the component as unmounted so async continuations
+    // (clipboard.read) bail out instead of touching state.
     useEffect(() => () => {
-        if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    }, []);
+        mountedRef.current = false;
+        revokePreviewUrl();
+    }, [revokePreviewUrl]);
 
     // Keyboard paste (Cmd/Ctrl+V): active only in the upload phase and when idle,
     // so pasting while editing an item in the review phase is never hijacked.
     useEffect(() => {
         if (phase !== 'upload' || loading) return;
         const onPaste = (e: ClipboardEvent) => {
+            // A scan may have started between setLoading(true) and this effect
+            // re-subscribing; don't let a stray paste swap the image mid-upload.
+            if (loadingRef.current) return;
             const file = imageFileFromClipboardEvent(e);
             // No image on the clipboard -> let normal paste proceed.
             if (file) loadFile(file);
@@ -141,16 +162,25 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
             setError("Pasting from the clipboard isn't supported in this browser.");
             return;
         }
+        // Ignore a second click while the first read() is still in flight.
+        if (pastingRef.current) return;
+        pastingRef.current = true;
         try {
             const items = await navigator.clipboard.read();
+            // The modal may have closed while awaiting the (permissioned) read.
+            if (!mountedRef.current) return;
             const file = await imageFileFromAsyncClipboard(items);
+            if (!mountedRef.current) return;
             if (!file) {
                 setError('No image found on the clipboard.');
                 return;
             }
             loadFile(file);
         } catch {
+            if (!mountedRef.current) return;
             setError('Could not read the clipboard. Check clipboard permissions and try again.');
+        } finally {
+            pastingRef.current = false;
         }
     };
 
@@ -158,6 +188,7 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         if (!image) return;
 
         setLoading(true);
+        loadingRef.current = true;
         setError('');
 
         try {
@@ -191,10 +222,11 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
             setTotal(data.total);
             setReceiptImagePath(data.receipt_image_path);
             setPhase('review');
-        } catch (err: any) {
-            setError(err.message || 'Failed to scan receipt');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to scan receipt');
         } finally {
             setLoading(false);
+            loadingRef.current = false;
         }
     };
 
@@ -218,8 +250,16 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
     };
 
     const handleCancel = () => {
-        if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+        revokePreviewUrl();
         onClose();
+    };
+
+    // Re-scan returns to the upload phase while keeping the selected image and its
+    // live preview, so it must NOT revoke the object URL.
+    const handleRescan = () => {
+        setPhase('upload');
+        setItems([]);
+        setError('');
     };
 
     // Inline editing
@@ -538,7 +578,7 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
                         {/* Actions */}
                         <div className="flex justify-end space-x-3 mt-4">
                             <button
-                                onClick={() => { if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current); setPhase('upload'); setItems([]); setError(''); }}
+                                onClick={handleRescan}
                                 className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                             >
                                 Re-scan
