@@ -1,7 +1,55 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { getApiUrl } from './api';
 import { useSync } from './contexts/SyncContext';
 import { compressImage } from './utils/imageCompression';
+
+// Synthesize a filename for a clipboard blob that usually has none.
+// e.g. image/png -> pasted-receipt.png (defaults to png).
+function filenameForBlob(type: string): string {
+    const ext = type.startsWith('image/') ? type.slice('image/'.length) : '';
+    return `pasted-receipt.${ext || 'png'}`;
+}
+
+// Extract the first usable image (or PDF) File from a paste event's clipboard data.
+function imageFileFromClipboardEvent(e: ClipboardEvent): File | null {
+    const data = e.clipboardData;
+    if (!data) return null;
+
+    const items = data.items;
+    if (items) {
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                if (file) {
+                    return file.name
+                        ? file
+                        : new File([file], filenameForBlob(item.type), { type: item.type });
+                }
+            }
+        }
+    }
+
+    // Fall back to a file copied from the OS file manager (may be a PDF).
+    const fallback = data.files && data.files[0];
+    if (fallback && (fallback.type.startsWith('image/') || fallback.type === 'application/pdf')) {
+        return fallback;
+    }
+
+    return null;
+}
+
+// Extract the first image File from an async clipboard read (navigator.clipboard.read()).
+async function imageFileFromAsyncClipboard(items: ClipboardItems): Promise<File | null> {
+    for (const item of items) {
+        const type = item.types.find((t) => t.startsWith('image/'));
+        if (type) {
+            const blob = await item.getType(type);
+            return new File([blob], filenameForBlob(type), { type });
+        }
+    }
+    return null;
+}
 
 interface ReceiptScannerProps {
     onItemsDetected: (items: { description: string; price: number }[], receiptPath?: string, validationWarning?: string | null, taxCents?: number | null, tipCents?: number | null, totalCents?: number | null) => void;
@@ -46,17 +94,63 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
     const [editPrice, setEditPrice] = useState('');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    // Tracks the current preview object URL for revocation without making loadFile
+    // depend on imageUrl (which would re-subscribe the paste listener every render).
+    const objectUrlRef = useRef<string>('');
+
+    // Shared "adopt this file" path for both the file picker and clipboard paste.
+    const loadFile = useCallback((file: File) => {
+        setImage(file);
+        setError('');
+        const pdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+        setIsPdf(pdf);
+        if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+        // A blob URL can't be rendered in an <img>, so only create one for images.
+        const url = pdf ? '' : URL.createObjectURL(file);
+        objectUrlRef.current = url;
+        setImageUrl(url);
+    }, []);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setImage(file);
-            setError('');
-            const pdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-            setIsPdf(pdf);
-            if (imageUrl) URL.revokeObjectURL(imageUrl);
-            // A blob URL can't be rendered in an <img>, so only create one for images.
-            setImageUrl(pdf ? '' : URL.createObjectURL(file));
+            loadFile(e.target.files[0]);
+        }
+    };
+
+    // Revoke the last preview object URL on unmount so closing the modal mid-flow
+    // doesn't leak it.
+    useEffect(() => () => {
+        if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    }, []);
+
+    // Keyboard paste (Cmd/Ctrl+V): active only in the upload phase and when idle,
+    // so pasting while editing an item in the review phase is never hijacked.
+    useEffect(() => {
+        if (phase !== 'upload' || loading) return;
+        const onPaste = (e: ClipboardEvent) => {
+            const file = imageFileFromClipboardEvent(e);
+            // No image on the clipboard -> let normal paste proceed.
+            if (file) loadFile(file);
+        };
+        document.addEventListener('paste', onPaste);
+        return () => document.removeEventListener('paste', onPaste);
+    }, [phase, loading, loadFile]);
+
+    const handlePasteFromClipboard = async () => {
+        if (!navigator.clipboard?.read) {
+            setError("Pasting from the clipboard isn't supported in this browser.");
+            return;
+        }
+        try {
+            const items = await navigator.clipboard.read();
+            const file = await imageFileFromAsyncClipboard(items);
+            if (!file) {
+                setError('No image found on the clipboard.');
+                return;
+            }
+            loadFile(file);
+        } catch {
+            setError('Could not read the clipboard. Check clipboard permissions and try again.');
         }
     };
 
@@ -124,7 +218,7 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
     };
 
     const handleCancel = () => {
-        if (imageUrl) URL.revokeObjectURL(imageUrl);
+        if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
         onClose();
     };
 
@@ -200,7 +294,7 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
                         {!image && (
                             <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                                 <p className="text-sm text-blue-700 dark:text-blue-400">
-                                    Take a clear photo of your receipt, or upload a PDF. The AI will automatically detect and itemize all purchases.
+                                    Take a clear photo of your receipt, upload a PDF, or paste an image from your clipboard. The AI will automatically detect and itemize all purchases.
                                 </p>
                             </div>
                         )}
@@ -223,6 +317,23 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
                                         cursor-pointer file:cursor-pointer"
                                 />
                             </label>
+                            <div className="mt-3">
+                                <button
+                                    type="button"
+                                    onClick={handlePasteFromClipboard}
+                                    disabled={loading}
+                                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full border transition-colors ${
+                                        loading
+                                            ? 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                                            : 'border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/30'
+                                    }`}
+                                >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                    </svg>
+                                    Paste from clipboard
+                                </button>
+                            </div>
                             {image && (
                                 <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                                     Selected: {image.name}
@@ -427,7 +538,7 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
                         {/* Actions */}
                         <div className="flex justify-end space-x-3 mt-4">
                             <button
-                                onClick={() => { setPhase('upload'); setItems([]); setError(''); }}
+                                onClick={() => { if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current); setPhase('upload'); setItems([]); setError(''); }}
                                 className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                             >
                                 Re-scan
