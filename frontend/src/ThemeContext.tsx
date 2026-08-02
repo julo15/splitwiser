@@ -41,10 +41,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         // Save to localStorage
         localStorage.setItem('theme', isDark ? 'dark' : 'light');
 
-        // Update PWA theme-color meta tag for iPhone frame
+        // Update PWA theme-color meta tag for iPhone frame. These are the two
+        // --sw-bg values; the browser chrome cannot read a CSS variable, so
+        // they are repeated here (and in index.html's pre-paint script, and in
+        // the manifest) and must be changed together.
         const metaThemeColor = document.querySelector('meta[name="theme-color"]');
         if (metaThemeColor) {
-            metaThemeColor.setAttribute('content', isDark ? '#1f2937' : '#14b8a6');
+            metaThemeColor.setAttribute('content', isDark ? '#161826' : '#e4e7f5');
         }
     }, [isDark]);
 
