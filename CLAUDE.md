@@ -145,9 +145,14 @@ Conventions:
 - Outbound calls (Frankfurter exchange rates, Brevo email, LLM receipt
   scanning) are mocked; the suite runs offline.
 
-CI: `.github/workflows/tests.yml` runs both suites on every pull request
-targeting `main` and on every push to `main`, as two parallel jobs
-(Python 3.11 / Node 20, matching the production image).
+CI runs both suites as two parallel jobs on Python 3.11 / Node 20, matching
+the production image:
+- `.github/workflows/_tests.yml` — the reusable suite definition. Edit this
+  to change how tests run; it is never triggered on its own.
+- `.github/workflows/tests.yml` — calls it for pull requests into `main`.
+- `.github/workflows/deploy.yml` — calls it as a gate before deploying to
+  Fly.io, so a push to `main` (or a manual deploy of another branch) only
+  ships when both suites pass on that exact ref.
 
 ### Database Migrations
 When schema changes are made, update the SQLite database:

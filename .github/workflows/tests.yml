@@ -1,74 +1,18 @@
 name: Tests
 
+# Pushes to main are covered by deploy.yml, which runs the same suites as a
+# gate before shipping — running them here too would just duplicate the work.
 on:
   pull_request:
     branches:
       - main
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
-# Cancel superseded runs on the same branch/PR, but never on main — a run there
-# gates the deploy and should always finish.
+# Cancel superseded runs on the same PR or branch.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 jobs:
-  backend:
-    name: Backend (pytest)
-    runs-on: ubuntu-latest
-
-    env:
-      # The suite runs against in-memory SQLite with all outbound calls mocked.
-      # A dummy signing key keeps auth.py from falling back to its insecure
-      # development default.
-      SECRET_KEY: test-secret-key-for-ci-only
-      SPLITWISER_ENV: test
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          # Matches the production image (Dockerfile.fly).
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: |
-            backend/requirements.txt
-            backend/requirements-dev.txt
-
-      - name: Install dependencies
-        working-directory: backend
-        run: pip install -r requirements.txt -r requirements-dev.txt
-
-      - name: Run tests
-        working-directory: backend
-        run: pytest tests/ -v --cov=. --cov-report=term-missing
-
-  frontend:
-    name: Frontend (vitest)
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          # Matches the production build stage (Dockerfile.fly).
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Run tests
-        working-directory: frontend
-        run: npm run test
+  tests:
+    uses: ./.github/workflows/_tests.yml
