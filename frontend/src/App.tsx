@@ -2,8 +2,6 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './Login';
 import Register from './Register';
-import HelpPage from './HelpPage';
-import AccountSettingsPage from './AccountSettingsPage';
 import ForgotPasswordPage from './ForgotPasswordPage';
 import ResetPasswordPage from './ResetPasswordPage';
 import VerifyEmailPage from './VerifyEmailPage';
@@ -23,6 +21,8 @@ import TabClaimPage from './routes/TabClaimPage';
 import PublicGroupPage from './routes/PublicGroupPage';
 import PeoplePage from './routes/PeoplePage';
 import ActivityPage from './routes/ActivityPage';
+import AccountSettingsPage from './routes/AccountSettingsPage';
+import HelpPage from './routes/HelpPage';
 import SyncStatusBar from './components/SyncStatusBar';
 
 const ProtectedRoute: React.FC<{ element: React.ReactElement }> = ({ element }) => {
@@ -83,11 +83,9 @@ function App() {
                 <Route path="/settle" element={<SettleUpPage />} />
                 <Route path="/tabs/:tabId" element={<TabBoardPage />} />
                 <Route path="/tabs/:tabId/close" element={<TabClosePage />} />
+                <Route path="/account" element={<AccountSettingsPage />} />
+                <Route path="/help" element={<HelpPage />} />
               </Route>
-
-              {/* Full-page protected routes, outside the shell */}
-              <Route path="/account" element={<ProtectedRoute element={<AccountSettingsPage />} />} />
-              <Route path="/help" element={<ProtectedRoute element={<HelpPage />} />} />
 
               {/*
                 * Public tab claim. No auth and no shell — the share token is
