@@ -108,11 +108,41 @@ npm run lint  # Run ESLint
 ```
 
 ### Testing
+
+Backend (pytest, in-memory SQLite — no external services are contacted):
 ```bash
 cd backend
-pytest tests/test_main.py  # Run backend tests
-pytest tests/test_main.py::test_create_user -v  # Run single test
+source venv/bin/activate
+pytest tests/                              # Run the whole suite
+pytest tests/test_expenses.py              # Run one file
+pytest tests/test_main.py::test_create_user -v  # Run a single test
+pytest tests/ --cov=. --cov-report=term-missing # With coverage
 ```
+
+Frontend (Vitest):
+```bash
+cd frontend
+npm run test        # Run once
+npm run test:watch  # Watch mode
+```
+
+Test layout:
+- `backend/tests/test_utils_*.py` — unit tests for pure logic (split maths,
+  validation, currency, display names, dates). No HTTP, no network.
+- `backend/tests/test_*.py` (others) — integration tests driving the real
+  FastAPI app through `TestClient` against a per-test in-memory database.
+- `backend/tests/test_performance_*.py` / `test_perf_*.py` — query-count
+  regression guards.
+- `frontend/src/**/__tests__/` — unit tests for pure utilities and hooks.
+
+Conventions:
+- Tests must not depend on execution order. Install FastAPI dependency
+  overrides via the `app_overrides` fixture rather than mutating
+  `app.dependency_overrides` directly, and never rebind that attribute — `app`
+  is a process-wide singleton and a leaked override silently authenticates
+  later tests as the wrong user.
+- Outbound calls (Frankfurter exchange rates, Brevo email, LLM receipt
+  scanning) are mocked; the suite runs offline.
 
 ### Database Migrations
 When schema changes are made, update the SQLite database:

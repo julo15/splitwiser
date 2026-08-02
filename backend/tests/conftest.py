@@ -31,6 +31,34 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
+@pytest.fixture(autouse=True)
+def restore_dependency_overrides():
+    """Undo any FastAPI dependency override a test leaves behind.
+
+    ``app`` is a module-level singleton shared by every test, so an override
+    installed inside a test body (commonly ``get_current_user``) otherwise
+    stays active for the rest of the session and silently authenticates later
+    tests as the wrong user. Declared first so it tears down last, after the
+    other autouse fixtures have removed their own overrides.
+    """
+    snapshot = dict(app.dependency_overrides)
+    yield
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(snapshot)
+
+
+@pytest.fixture
+def app_overrides(restore_dependency_overrides):
+    """Install FastAPI dependency overrides that are undone after the test.
+
+    Use this instead of touching ``app.dependency_overrides`` directly, and
+    never rebind the attribute — assigning a fresh dict drops the overrides
+    the test fixtures rely on, including the test database session.
+    """
+    return app.dependency_overrides
+
+
 @pytest.fixture(scope="function")
 def db_session():
     """Create a fresh database session for each test."""
