@@ -20,6 +20,7 @@ from utils.rate_limiter import (
     profile_update_rate_limiter,
     summary_rate_limiter
 )
+from routers.tabs import public_tab_rate_limiter, tab_join_rate_limiter
 
 # Setup in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -102,7 +103,9 @@ def disable_rate_limits():
         password_reset_rate_limiter: mock_rate_limit,
         email_verification_rate_limiter: mock_rate_limit,
         profile_update_rate_limiter: mock_rate_limit,
-        summary_rate_limiter: mock_rate_limit
+        summary_rate_limiter: mock_rate_limit,
+        public_tab_rate_limiter: mock_rate_limit,
+        tab_join_rate_limiter: mock_rate_limit,
     }
 
     # Apply overrides

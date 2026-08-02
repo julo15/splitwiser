@@ -565,3 +565,99 @@ class GoogleLinkRequest(BaseModel):
 class SetPasswordRequest(BaseModel):
     """Request to set password for OAuth-only users."""
     new_password: str = Field(..., min_length=8, max_length=128)
+
+
+# ---------------------------------------------------------------------------
+# Tabs
+# ---------------------------------------------------------------------------
+
+class TabItemCreate(BaseModel):
+    description: str = Field(min_length=1, max_length=200)
+    price: int = Field(ge=0, le=100_000_000)  # cents
+
+
+class TabCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+    items: List[TabItemCreate] = Field(default_factory=list, max_length=200)
+    tax: int = Field(default=0, ge=0, le=100_000_000)
+    tip: int = Field(default=0, ge=0, le=100_000_000)
+    total: Optional[int] = Field(default=None, ge=0, le=100_000_000)
+    receipt_image_path: Optional[str] = None
+
+
+class TabItemOut(BaseModel):
+    id: int
+    description: str
+    price: int
+    added_manually: bool
+    # Participant ids claiming this line; several means it is shared.
+    claimed_by: List[int] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True
+
+
+class TabParticipantOut(BaseModel):
+    id: int
+    display_name: str
+    # Present only for participants who were signed in when they claimed.
+    user_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TabOut(BaseModel):
+    id: int
+    name: str
+    currency: str
+    status: str
+    tax: int
+    tip: int
+    total: Optional[int]
+    created_by_id: int
+    payer_id: Optional[int]
+    expense_id: Optional[int]
+    items: List[TabItemOut] = Field(default_factory=list)
+    participants: List[TabParticipantOut] = Field(default_factory=list)
+    # Owner-only: absent from the public view.
+    share_token: Optional[str] = None
+    token_expires_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PublicTabOut(BaseModel):
+    """What a link-holder sees. Deliberately narrower than TabOut."""
+    name: str
+    currency: str
+    status: str
+    tax: int
+    tip: int
+    total: Optional[int]
+    items: List[TabItemOut] = Field(default_factory=list)
+    participants: List[TabParticipantOut] = Field(default_factory=list)
+
+
+class TabJoinRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=60)
+
+
+class TabJoinResponse(BaseModel):
+    participant: TabParticipantOut
+    # Identifies this claimer on later requests; they have no account.
+    claim_token: str
+    tab: PublicTabOut
+
+
+class TabClaimRequest(BaseModel):
+    claim_token: str = Field(min_length=1, max_length=128)
+    claimed: bool = True
+
+
+class TabCloseRequest(BaseModel):
+    """Closing turns the tab into one ordinary direct expense."""
+    payer_participant_id: Optional[int] = None
+    date: Optional[str] = None

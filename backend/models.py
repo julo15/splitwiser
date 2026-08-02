@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, UniqueConstraint
 from database import Base
 from datetime import datetime
 
@@ -163,3 +163,100 @@ class ExpenseGuest(Base):
     paid = Column(Boolean, default=False)
     paid_at = Column(DateTime, nullable=True)
     created_by_id = Column(Integer, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Tabs
+# ---------------------------------------------------------------------------
+# A tab is a one-off bill shared with a table of people, most of whom are not
+# in a group and may not have accounts. The receipt creates the container and
+# whoever claims an item becomes a participant — so unlike a Group there is
+# nothing to name up front and nobody to invite.
+#
+# A tab is deliberately NOT a Group: it never appears under Groups, and on
+# close it resolves into ordinary direct expenses (group_id NULL) so the
+# balances land in the same person-to-person totals everything else uses.
+
+
+class Tab(Base):
+    """An open bill that people claim items from via a share link."""
+    __tablename__ = "tabs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)  # Venue, e.g. "Bar Sol"
+    created_by_id = Column(Integer, nullable=False, index=True)
+    currency = Column(String, default="USD")
+
+    # Public share link. Unlike Group.share_link_id — a permanent, read-only
+    # UUID — this token grants WRITE access (claiming), so it is high-entropy,
+    # expiring and revocable.
+    share_token = Column(String, unique=True, index=True, nullable=False)
+    token_expires_at = Column(DateTime, nullable=False)
+    revoked = Column(Boolean, default=False, nullable=False)
+
+    status = Column(String, default="open", nullable=False)  # open | closed
+
+    # Who fronted the bill. Defaults to the creator at close time.
+    payer_id = Column(Integer, nullable=True)
+
+    tax = Column(Integer, default=0, nullable=False)   # cents
+    tip = Column(Integer, default=0, nullable=False)   # cents
+    total = Column(Integer, nullable=True)             # printed total, cents
+    receipt_image_path = Column(String, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    closed_at = Column(DateTime, nullable=True)
+    # Set once the tab resolves into a real expense.
+    expense_id = Column(Integer, nullable=True, index=True)
+
+
+class TabItem(Base):
+    """One line on the tab. Tax and tip are columns on Tab, not items."""
+    __tablename__ = "tab_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tab_id = Column(Integer, nullable=False, index=True)
+    description = Column(String, nullable=False)
+    price = Column(Integer, nullable=False)  # cents
+    # True for lines added by hand on the live board rather than by the scan.
+    added_manually = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class TabParticipant(Base):
+    """
+    Someone at the table. Created the moment they claim, not by invitation.
+
+    `user_id` is set when a signed-in user claims; anonymous claimers are
+    identified only by their own `claim_token`, which is what lets them come
+    back and change their mind without an account.
+    """
+    __tablename__ = "tab_participants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tab_id = Column(Integer, nullable=False, index=True)
+    display_name = Column(String, nullable=False)
+    user_id = Column(Integer, nullable=True, index=True)
+    claim_token = Column(String, unique=True, index=True, nullable=False)
+    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class TabItemClaim(Base):
+    """
+    A participant's claim on one item.
+
+    Several people claiming the same item is sharing, not a conflict: the line
+    splits evenly between everyone on it.
+    """
+    __tablename__ = "tab_item_claims"
+    # One claim per person per line, enforced in the schema so a retry or a
+    # double tap cannot double-count. Mirrors the migration's unique index.
+    __table_args__ = (
+        UniqueConstraint("item_id", "participant_id", name="ux_tab_item_claims_item_participant"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tab_id = Column(Integer, nullable=False, index=True)
+    item_id = Column(Integer, nullable=False, index=True)
+    participant_id = Column(Integer, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
