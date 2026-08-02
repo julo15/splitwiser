@@ -6,6 +6,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { useCurrencyPreferences } from '../hooks/useCurrencyPreferences';
 import { useAppData } from '../contexts/AppDataContext';
 import { formatCurrencyDisplay } from '../utils/currencyHelpers';
+import { normalizeVenmoUsername, venmoUsernameError } from '../utils/venmo';
 import { api } from '../services/api';
 
 interface UserProfile {
@@ -17,6 +18,7 @@ interface UserProfile {
     password_changed_at: string | null;
     last_login_at: string | null;
     default_currency: string;
+    venmo_username: string | null;
 }
 
 interface FriendRequest {
@@ -60,6 +62,7 @@ const AccountSettingsPage: React.FC = () => {
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [defaultCurrency, setDefaultCurrency] = useState('USD');
+    const [venmoUsername, setVenmoUsername] = useState('');
     const [profileFeedback, setProfileFeedback] = useState<Feedback>(null);
     const [savingProfile, setSavingProfile] = useState(false);
     const [resending, setResending] = useState(false);
@@ -82,6 +85,7 @@ const AccountSettingsPage: React.FC = () => {
             setFullName(data.full_name || '');
             setEmail(data.email);
             setDefaultCurrency(data.default_currency || 'USD');
+            setVenmoUsername(data.venmo_username || '');
         } catch (error) {
             console.error('Failed to load profile:', error);
         } finally {
@@ -118,15 +122,28 @@ const AccountSettingsPage: React.FC = () => {
         setSavingProfile(true);
 
         try {
+            const venmoProblem = venmoUsernameError(venmoUsername);
+            if (venmoProblem) {
+                setProfileFeedback({ tone: 'error', message: venmoProblem });
+                return;
+            }
+            const venmo = normalizeVenmoUsername(venmoUsername);
+
             const updates: {
                 full_name?: string;
                 email?: string;
                 default_currency?: string;
+                venmo_username?: string;
             } = {};
             if (fullName !== profile?.full_name) updates.full_name = fullName;
             if (email !== profile?.email) updates.email = email;
             if (defaultCurrency !== profile?.default_currency) {
                 updates.default_currency = defaultCurrency;
+            }
+            // An empty string is meaningful here: it asks the server to remove
+            // the handle. Omitting the key leaves the stored one alone.
+            if (venmo !== (profile?.venmo_username ?? '')) {
+                updates.venmo_username = venmo;
             }
 
             if (Object.keys(updates).length === 0) {
@@ -323,6 +340,17 @@ const AccountSettingsPage: React.FC = () => {
                                 Used for new expenses and for the “in my currency” totals.
                             </p>
                         </div>
+
+                        <Field
+                            label="Venmo username"
+                            value={venmoUsername}
+                            onChange={(event) => setVenmoUsername(event.target.value)}
+                            placeholder="your-handle"
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            hint="Optional. Friends settling up with you get a Venmo button with the amount already filled in. Only people you're friends with can see it."
+                        />
 
                         {profileFeedback && (
                             <Notice tone={profileFeedback.tone}>

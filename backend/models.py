@@ -14,6 +14,9 @@ class User(Base):
     email_verified = Column(Boolean, default=False)
     last_login_at = Column(DateTime, nullable=True)
     default_currency = Column(String, default="USD")
+    # Venmo handle, without the leading @. Visible to friends so they can be
+    # handed a pre-filled payment; never exposed on a public share link.
+    venmo_username = Column(String, nullable=True)
     # OAuth fields
     google_id = Column(String, unique=True, nullable=True, index=True)  # Google's unique user ID
     google_picture = Column(String, nullable=True)  # Profile picture URL from Google

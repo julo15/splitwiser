@@ -4,6 +4,11 @@ export interface Friend {
     id: number;
     full_name: string;
     email: string;
+    /**
+     * Their Venmo handle, without the @, when they have published one. Only
+     * returned to friends, so settling up can hand over a pre-filled payment.
+     */
+    venmo_username?: string | null;
 }
 
 export interface User {

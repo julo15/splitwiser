@@ -187,3 +187,67 @@ const recentCurrencies = JSON.parse(localStorage.getItem('recentCurrencies') || 
 recentCurrencies.unshift(selectedCurrency);
 localStorage.setItem('recentCurrencies', JSON.stringify(recentCurrencies.slice(0, 3)));
 ```
+
+## Venmo Hand-off on Settle Up
+
+Splitwiser records that a debt was settled; it never moves money. This closes
+the gap between the two by handing the payment to Venmo with the recipient,
+amount and note already filled in, so nobody retypes a figure they might get
+wrong.
+
+### Setting a handle
+
+- `User.venmo_username` — nullable, no default. Absent means "I haven't set
+  one", which is the right starting state for every existing user.
+- Set from Account settings. The server strips a leading `@` and surrounding
+  whitespace, so pasting `@maya-chen` straight off Venmo works.
+- An **empty** value clears the handle; **omitting** the field leaves it alone.
+  That distinction matters because saving any other part of the profile must
+  not wipe it.
+- Validation is deliberately loose beyond the obvious unsafe characters
+  (`[A-Za-z0-9_-]`, max 30). Venmo owns the rules for what handles exist and
+  has changed them before — rejecting a handle somebody actually has would be
+  worse than letting a bad one through, where the link just lands on a Venmo
+  page that says no such user.
+
+### Who can see it
+
+Returned in `GET /friends` and on your own profile. **Not** in any public
+payload — `test_venmo_username.py` asserts the string never appears in a share
+link response. A payment handle must not ride along with a link handed to
+strangers.
+
+### The link
+
+Built by `frontend/src/utils/venmo.ts`:
+
+```
+https://venmo.com/?txn=pay&audience=private&recipients=<handle>&amount=<dollars>&note=<note>
+```
+
+- **`txn`** is `pay` when you owe them and `charge` when they owe you, so the
+  button reads "Pay with Venmo" or "Ask on Venmo".
+- **`https`, not `venmo://`** — a universal link opens the app on a phone and
+  the website on a desktop. A custom scheme would simply fail on desktop, which
+  is where the settle-up screen has the most room.
+- **USD only.** Venmo has no notion of the other currencies this app supports,
+  and pre-filling `52.14` from a EUR debt would ask for the wrong number of
+  dollars. `buildVenmoLink` returns `null` for anything else and the UI says
+  why rather than silently dropping the button.
+- The note is plain ASCII: it lands in a Venmo memo, where a middot arrives as
+  `%C2%B7`.
+
+### It does not mark anything paid
+
+Opening Venmo is not proof of payment — there is no callback and no way to
+learn whether the transfer went through. "Mark as paid" stays a separate,
+deliberate action that records the settlement expense exactly as before. The
+row says so in as many words.
+
+### Where it does not appear
+
+- Guests, who have no account and therefore no handle.
+- Friends who haven't set one — no button and no explanation, since there's
+  nothing to explain.
+- Group members who aren't friends: the settle-up screen only has the friends
+  list to look handles up in.

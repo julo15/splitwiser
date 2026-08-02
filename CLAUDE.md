@@ -52,7 +52,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `frontend/src/App.tsx` - Main app with Dashboard, routing, protected routes
 - `frontend/src/AuthContext.tsx` - Authentication with automatic token refresh
 - `frontend/src/ThemeContext.tsx` - Dark mode with localStorage persistence
-- `frontend/src/GroupDetailPage.tsx` - Group detail, balances, public share links
+- `frontend/src/routes/GroupPage.tsx` - Group detail: expenses, balances, spending, people
 - `frontend/src/ExpenseDetailModal.tsx` - Expense viewing/editing with notes
 - `frontend/src/AddExpenseModal.tsx` - Expense creation (5 split types)
 
@@ -65,14 +65,15 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `frontend/src/utils/formatters.ts` - Money, date, and name formatting
 - `frontend/src/utils/expenseCalculations.ts` - Frontend split calculations
 - `frontend/src/utils/tabShares.ts` - Live preview of tab shares; TS port of `backend/utils/tabs.py`
+- `frontend/src/utils/venmo.ts` - Venmo deeplink builder for settle up (USD only)
 
 **Feature Components:**
 - `frontend/src/ReceiptScanner.tsx` - LLM-based receipt scanning (upload → AI scan → review items)
 - `frontend/src/components/expense/ExpenseItemList.tsx` - Itemized expense UI with per-item splits
-- `frontend/src/ManageGuestModal.tsx` - Guest management and balance aggregation
-- `frontend/src/ManageMemberModal.tsx` - Member management for registered users
+- `frontend/src/components/group/GroupPersonSheet.tsx` - Per-person actions in a group: claim a guest, fold a balance into a manager, remove, send a friend request
+- `frontend/src/components/AddPersonSheet.tsx` - Add a friend by email
 - `frontend/src/hooks/useItemizedExpense.ts` - Itemized expense state management
-- `frontend/src/components/summary/SummarySection.tsx` - Collapsible summary section
+- `frontend/src/components/summary/SummarySection.tsx` - Spending summary (consumption, not balances)
 - `frontend/src/components/summary/MemberConsumptionTable.tsx` - Per-member rows
 - `frontend/src/components/summary/SpendingTrendChart.tsx` - Stacked bar chart (visx)
 - `frontend/src/routes/TabBoardPage.tsx` - Host's view of a live tab (mobile list / desktop two-pane)
@@ -92,6 +93,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - Registered members can also be managed for balance aggregation
 - Refresh tokens stored hashed (SHA-256) in database with server-side revocation
 - Itemized expenses use proportional tax/tip distribution
+- Settling up can hand off to Venmo with the amount pre-filled; it never marks anything paid, since there is no callback
 - Tabs are share-link bills with no group: high-entropy expiring write tokens, anonymous claimers held by their own claim token, unclaimed lines spread across everyone at close
 - Receipt uploads (images and PDFs) stored in `data/receipts/` directory (configurable via `DATA_DIR` env var); PDFs are rasterized per-page for the LLM but the original file is preserved
 
@@ -195,6 +197,7 @@ Public (no auth, rate-limited):
 
 ## Key Database Fields
 
+- User: `default_currency`, `venmo_username` (no @; friends-only, never public)
 - Group: `default_currency`, `icon`, `share_link_id`, `is_public`
 - GroupMember: `managed_by_id`, `managed_by_type`
 - Expense: `exchange_rate`, `split_type`, `receipt_image_path`, `icon`, `notes`, `payer_is_guest`
@@ -211,7 +214,7 @@ Public (no auth, rate-limited):
 ## Detailed Documentation
 
 For more detailed information, see the `docs/` directory:
-- `docs/FEATURES.md` - Currency features, dark mode, balance grouping
+- `docs/FEATURES.md` - Currency features, dark mode, balance grouping, Venmo hand-off
 - `docs/AUTHENTICATION.md` - Refresh tokens, email notifications
 - `docs/OCR.md` - Receipt scanning system
 - `docs/LLM_RECEIPT_SCANNING.md` - LLM-based receipt scanning implementation plan

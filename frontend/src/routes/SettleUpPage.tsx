@@ -1,6 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CaretRight, Check, Lightning } from '@phosphor-icons/react';
+import {
+    ArrowLeft,
+    ArrowSquareOut,
+    CaretRight,
+    Check,
+    Lightning,
+} from '@phosphor-icons/react';
 import { Avatar, Button, Card, Money } from '../components/ui';
 import { useAuth } from '../AuthContext';
 import { useAppData } from '../contexts/AppDataContext';
@@ -10,6 +16,7 @@ import { useSettlement } from '../hooks/useSettlement';
 import { api } from '../services/api';
 import { formatDateForInput } from '../utils/formatters';
 import { settlementTotal } from '../utils/settlement';
+import { buildVenmoLink, VENMO_CURRENCY } from '../utils/venmo';
 import type { SuggestedPayment } from '../utils/settlement';
 
 /**
@@ -45,6 +52,32 @@ const SettleUpPage: React.FC = () => {
                   'Guest')
                 : (friendNames.get(payment.userId) ?? `Person ${payment.userId}`);
     }, [friends, groups]);
+
+    /**
+     * The Venmo hand-off for a payment, or null when we cannot offer one:
+     * the other party is a guest with no account, has published no handle, or
+     * the debt is not in dollars.
+     */
+    const venmoFor = useMemo(() => {
+        const handles = new Map(
+            friends.map((friend) => [friend.id, friend.venmo_username ?? null])
+        );
+        return (payment: SuggestedPayment): string | null => {
+            if (payment.isGuest) return null;
+            const username = handles.get(payment.userId);
+            if (!username) return null;
+            return buildVenmoLink({
+                username,
+                amountCents: payment.amount,
+                currency: payment.currency,
+                // I owe them → pay. They owe me → ask.
+                action: payment.iPay ? 'pay' : 'request',
+                // Plain ASCII: this lands in a Venmo memo, and a middot only
+                // arrives there as %C2%B7 noise.
+                note: `Settling up: ${payment.groupName}`,
+            });
+        };
+    }, [friends]);
 
     const outstanding = payments.filter((p) => !done.has(p.key));
     const total = useMemo(() => settlementTotal(counterparties), [counterparties]);
@@ -203,18 +236,75 @@ const SettleUpPage: React.FC = () => {
                                                 className="text-xl font-medium flex-none"
                                             />
                                         </div>
-                                        <Button
-                                            variant="primary"
-                                            block
-                                            icon={<Check size={15} />}
-                                            disabled={recording === payment.key}
-                                            onClick={() => markPaid(payment)}
-                                            className="min-h-[42px]"
-                                        >
-                                            {recording === payment.key
-                                                ? 'Recording…'
-                                                : 'Mark as paid'}
-                                        </Button>
+                                        {(() => {
+                                            const venmo = venmoFor(payment);
+                                            return (
+                                                <>
+                                                    <div className="flex gap-2">
+                                                        {venmo && (
+                                                            <Button
+                                                                href={venmo}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                variant="secondary"
+                                                                icon={
+                                                                    <ArrowSquareOut
+                                                                        size={15}
+                                                                    />
+                                                                }
+                                                                className="min-h-[42px] flex-1"
+                                                            >
+                                                                {payment.iPay
+                                                                    ? 'Pay with Venmo'
+                                                                    : 'Ask on Venmo'}
+                                                            </Button>
+                                                        )}
+                                                        <Button
+                                                            variant="primary"
+                                                            block={!venmo}
+                                                            icon={<Check size={15} />}
+                                                            disabled={
+                                                                recording === payment.key
+                                                            }
+                                                            onClick={() =>
+                                                                markPaid(payment)
+                                                            }
+                                                            className="min-h-[42px] flex-1"
+                                                        >
+                                                            {recording === payment.key
+                                                                ? 'Recording…'
+                                                                : 'Mark as paid'}
+                                                        </Button>
+                                                    </div>
+
+                                                    {/*
+                                                      * Venmo opening is not proof of
+                                                      * payment — we never learn whether
+                                                      * it went through, so recording
+                                                      * stays a separate, deliberate tap.
+                                                      */}
+                                                    {venmo && (
+                                                        <p className="text-[11.5px] text-sw-dim mt-2">
+                                                            Venmo opens with the amount
+                                                            filled in. Come back and mark
+                                                            it paid once it&rsquo;s sent.
+                                                        </p>
+                                                    )}
+
+                                                    {!venmo &&
+                                                        !payment.isGuest &&
+                                                        payment.currency !==
+                                                            VENMO_CURRENCY && (
+                                                            <p className="text-[11.5px] text-sw-dim mt-2">
+                                                                Venmo only sends US
+                                                                dollars, so there&rsquo;s
+                                                                no shortcut for a{' '}
+                                                                {payment.currency} debt.
+                                                            </p>
+                                                        )}
+                                                </>
+                                            );
+                                        })()}
                                     </Card>
                                 );
                             })}

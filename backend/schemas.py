@@ -1,8 +1,14 @@
+import re
+
 from pydantic import BaseModel, EmailStr, field_validator, Field
 from typing import Optional, Dict, List, Literal
 from datetime import datetime
 
 from utils.currency import VALID_CURRENCIES
+
+# Venmo handles are letters, numbers, dashes and underscores. Length is checked
+# separately so the two failures can say different things.
+VENMO_USERNAME_RE = re.compile(r'[A-Za-z0-9_-]+')
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -247,6 +253,9 @@ class Friend(BaseModel):
     id: int
     full_name: str
     email: str
+    # Only ever returned to people you are already friends with, so settling up
+    # can hand them a pre-filled payment. Absent from every public payload.
+    venmo_username: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -491,6 +500,8 @@ class ProfileUpdateRequest(BaseModel):
     full_name: Optional[str] = Field(None, max_length=100)
     email: Optional[EmailStr] = None
     default_currency: Optional[str] = Field(None, min_length=3, max_length=3)
+    # Empty string clears it; see the validator.
+    venmo_username: Optional[str] = Field(None, max_length=31)
 
     @field_validator('default_currency')
     @classmethod
@@ -500,6 +511,36 @@ class ProfileUpdateRequest(BaseModel):
         if v not in VALID_CURRENCIES:
             raise ValueError(f'Currency must be one of {VALID_CURRENCIES}')
         return v
+
+    @field_validator('venmo_username')
+    @classmethod
+    def validate_venmo_username(cls, v):
+        """
+        Normalise a Venmo handle: strip a leading @, keep the rest verbatim.
+
+        An empty (or whitespace-only) value means "remove mine", and is
+        distinct from omitting the field, which means "leave it alone".
+
+        Deliberately permissive about the character set beyond the obvious
+        unsafe ones: Venmo owns the rules for what handles exist, they have
+        changed before, and rejecting a handle somebody actually has would be
+        worse than letting a bad one through — the link simply lands on a
+        Venmo page that says no such user.
+        """
+        if v is None:
+            return None
+
+        handle = v.strip().lstrip('@').strip()
+        if not handle:
+            return ''  # sentinel for "clear it"
+
+        if len(handle) > 30:
+            raise ValueError('Venmo usernames are at most 30 characters')
+        if not VENMO_USERNAME_RE.fullmatch(handle):
+            raise ValueError(
+                'Venmo usernames use letters, numbers, dashes and underscores'
+            )
+        return handle
 
 
 class VerifyEmailRequest(BaseModel):
@@ -517,6 +558,7 @@ class UserProfile(BaseModel):
     password_changed_at: Optional[datetime] = None
     last_login_at: Optional[datetime] = None
     default_currency: str = "USD"
+    venmo_username: Optional[str] = None
 
     class Config:
         from_attributes = True
