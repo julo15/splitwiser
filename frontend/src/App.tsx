@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './Login';
 import Register from './Register';
 import GroupDetailPage from './GroupDetailPage';
-import FriendDetailPage from './FriendDetailPage';
 import HelpPage from './HelpPage';
 import AccountSettingsPage from './AccountSettingsPage';
 import ForgotPasswordPage from './ForgotPasswordPage';
@@ -17,6 +16,7 @@ import AppShell from './layouts/AppShell';
 import OverviewPage from './routes/OverviewPage';
 import GroupsPage from './routes/GroupsPage';
 import GroupPage from './routes/GroupPage';
+import PersonPage from './routes/PersonPage';
 import PeoplePage from './routes/PeoplePage';
 import ActivityPage from './routes/ActivityPage';
 import SyncStatusBar from './components/SyncStatusBar';
@@ -74,7 +74,7 @@ function App() {
                 <Route path="/groups" element={<GroupsPage />} />
                 <Route path="/groups/:groupId" element={<GroupPage />} />
                 <Route path="/people" element={<PeoplePage />} />
-                <Route path="/friends/:friendId" element={<FriendDetailPage />} />
+                <Route path="/friends/:friendId" element={<PersonPage />} />
                 <Route path="/activity" element={<ActivityPage />} />
               </Route>
 
