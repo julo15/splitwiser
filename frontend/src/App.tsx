@@ -18,6 +18,9 @@ import GroupsPage from './routes/GroupsPage';
 import GroupPage from './routes/GroupPage';
 import PersonPage from './routes/PersonPage';
 import SettleUpPage from './routes/SettleUpPage';
+import TabBoardPage from './routes/TabBoardPage';
+import TabClosePage from './routes/TabClosePage';
+import TabClaimPage from './routes/TabClaimPage';
 import PeoplePage from './routes/PeoplePage';
 import ActivityPage from './routes/ActivityPage';
 import SyncStatusBar from './components/SyncStatusBar';
@@ -78,11 +81,20 @@ function App() {
                 <Route path="/friends/:friendId" element={<PersonPage />} />
                 <Route path="/activity" element={<ActivityPage />} />
                 <Route path="/settle" element={<SettleUpPage />} />
+                <Route path="/tabs/:tabId" element={<TabBoardPage />} />
+                <Route path="/tabs/:tabId/close" element={<TabClosePage />} />
               </Route>
 
               {/* Full-page protected routes, outside the shell */}
               <Route path="/account" element={<ProtectedRoute element={<AccountSettingsPage />} />} />
               <Route path="/help" element={<ProtectedRoute element={<HelpPage />} />} />
+
+              {/*
+                * Public tab claim. No auth and no shell — the share token is
+                * the only credential, and most people opening this have no
+                * account at all.
+                */}
+              <Route path="/t/:shareToken" element={<TabClaimPage />} />
 
               {/* Public share link */}
               <Route path="/share/:shareLinkId" element={<GroupDetailPage />} />

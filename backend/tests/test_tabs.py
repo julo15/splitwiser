@@ -341,11 +341,18 @@ class TestClosing:
             g.amount_owed for g in guests
         ) == expense.amount
 
-    def test_closing_revokes_the_link(self, client):
+    def test_the_link_still_reads_after_closing(self, client):
+        """
+        Guests are still holding the link open when the host closes. They
+        should see the closed tab and their number, not a broken link.
+        """
         headers = register(client, "vince@example.com", "Vince Woo")
         tab = make_tab(client, headers)
         client.post(f"/tabs/{tab['id']}/close", json={}, headers=headers)
-        assert client.get(f"/public/tabs/{tab['share_token']}").status_code == 404
+
+        response = client.get(f"/public/tabs/{tab['share_token']}")
+        assert response.status_code == 200
+        assert response.json()["status"] == "closed"
 
     def test_a_closed_tab_cannot_be_closed_again(self, client):
         headers = register(client, "vince@example.com", "Vince Woo")
@@ -369,8 +376,8 @@ class TestClosing:
             f"/public/tabs/{token}/items/{tab['items'][0]['id']}/claim",
             json={"claim_token": joined["claim_token"], "claimed": True},
         )
-        # The link is spent, so this reads as an invalid link.
-        assert response.status_code == 404
+        # Readable, but no longer writable.
+        assert response.status_code == 409
 
     def test_a_tab_with_no_items_cannot_close(self, client):
         headers = register(client, "vince@example.com", "Vince Woo")

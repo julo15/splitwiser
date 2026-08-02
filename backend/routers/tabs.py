@@ -407,8 +407,11 @@ def close_tab(
     tab.closed_at = datetime.utcnow()
     tab.payer_id = payer.user_id
     tab.expense_id = expense.id
-    # A closed tab's link is spent.
-    tab.revoked = True
+    # The link is deliberately NOT revoked here. People are still holding it
+    # open on their phones when the host closes, and a revoked link would show
+    # them an error instead of what they ended up owing. Writes are already
+    # refused once status is "closed", and the token still expires on its own.
+    # Revoking stays a separate, explicit action.
     db.commit()
     db.refresh(tab)
 
