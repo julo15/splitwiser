@@ -28,12 +28,17 @@ const Sheet: React.FC<SheetProps> = ({
     className = '',
 }) => {
     const panelRef = useRef<HTMLDivElement>(null);
+    const onCloseRef = useRef(onClose);
+
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
 
     useEffect(() => {
         if (!open) return;
 
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') onClose();
+            if (event.key === 'Escape') onCloseRef.current();
         };
         document.addEventListener('keydown', onKeyDown);
 
@@ -49,7 +54,7 @@ const Sheet: React.FC<SheetProps> = ({
             document.removeEventListener('keydown', onKeyDown);
             document.body.style.overflow = previousOverflow;
         };
-    }, [open, onClose]);
+    }, [open]);
 
     if (!open) return null;
 

@@ -497,7 +497,25 @@ export const tabsApi = {
             method: 'POST',
             body: JSON.stringify(payload),
         });
-        if (!response.ok) throw new Error('Failed to open the tab');
+        if (!response.ok) {
+            const body = await response.json().catch(() => ({}));
+            const detail = body.detail;
+            const message = Array.isArray(detail)
+                ? detail
+                      .map((issue: { loc?: Array<string | number>; msg?: string }) => {
+                          if (!issue.msg) return null;
+                          const location = issue.loc?.[issue.loc.length - 1];
+                          return location === undefined
+                              ? issue.msg
+                              : `${String(location)}: ${issue.msg}`;
+                      })
+                      .filter((issue: string | null): issue is string => issue !== null)
+                      .join(', ')
+                : typeof detail === 'string'
+                  ? detail
+                  : '';
+            throw new Error(message || 'Could not open the tab. Please try again.');
+        }
         return response.json();
     },
 

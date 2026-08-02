@@ -7,6 +7,10 @@ Set LLM_PROVIDER env var to choose the backend:
 
 import os
 
+MAX_TAB_ITEMS = 200
+MAX_TAB_TEXT_LENGTH = 200
+MAX_TAB_CENTS = 100_000_000
+
 # ── Shared prompt and schema used by all providers ──────────────────────
 
 SYSTEM_PROMPT = """You are a receipt parser. Given an image of a receipt, extract all purchased items.
@@ -69,6 +73,54 @@ RESPONSE_SCHEMA = {
 
 # ── Provider dispatch ───────────────────────────────────────────────────
 
+def _optional_cents(value: object) -> int | None:
+    if type(value) is not int or value < 0:
+        return None
+    return min(value, MAX_TAB_CENTS)
+
+
+def _sanitize_receipt_result(result: dict) -> dict:
+    """Keep provider output inside the contract accepted by ``TabCreate``."""
+    raw_items = result.get("items", [])
+    if not isinstance(raw_items, list):
+        raw_items = []
+
+    items = []
+    for raw_item in raw_items[:MAX_TAB_ITEMS]:
+        if not isinstance(raw_item, dict):
+            continue
+
+        raw_description = raw_item.get("description")
+        description = (
+            raw_description.strip()
+            if isinstance(raw_description, str) and raw_description.strip()
+            else "Unknown item"
+        )
+        price = raw_item.get("price_cents")
+        quantity = raw_item.get("quantity")
+        items.append(
+            {
+                **raw_item,
+                "description": description[:MAX_TAB_TEXT_LENGTH],
+                "price_cents": (
+                    min(price, MAX_TAB_CENTS)
+                    if type(price) is int and price >= 0
+                    else 0
+                ),
+                "quantity": quantity
+                if type(quantity) is int and quantity >= 1
+                else 1,
+            }
+        )
+
+    return {
+        **result,
+        "items": items,
+        "tax_cents": _optional_cents(result.get("tax_cents")),
+        "tip_cents": _optional_cents(result.get("tip_cents")),
+        "total_cents": _optional_cents(result.get("total_cents")),
+    }
+
 def parse_receipt(pages: list[tuple[bytes, str]]) -> dict:
     """
     Parse a receipt using the configured LLM provider.
@@ -90,15 +142,4 @@ def parse_receipt(pages: list[tuple[bytes, str]]) -> dict:
     else:
         raise RuntimeError(f"Unknown LLM_PROVIDER: {provider!r}. Use 'openai' or 'gemini'.")
 
-    result = _parse(list(pages))
-
-    # Validate / sanitize items regardless of provider
-    for item in result.get("items", []):
-        if not isinstance(item.get("price_cents"), int) or item["price_cents"] < 0:
-            item["price_cents"] = 0
-        if not isinstance(item.get("quantity"), int) or item["quantity"] < 1:
-            item["quantity"] = 1
-        if not item.get("description") or not isinstance(item["description"], str):
-            item["description"] = "Unknown item"
-
-    return result
+    return _sanitize_receipt_result(_parse(list(pages)))

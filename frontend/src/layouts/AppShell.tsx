@@ -85,8 +85,12 @@ const AppShell: React.FC = () => {
             });
             setPendingTab(null);
             navigate(`/tabs/${tab.id}`);
-        } catch {
-            setTabError('Could not open the tab. Please try again.');
+        } catch (error) {
+            setTabError(
+                error instanceof Error
+                    ? error.message
+                    : 'Could not open the tab. Please try again.'
+            );
         } finally {
             setOpeningTab(false);
         }
@@ -156,6 +160,7 @@ const AppShell: React.FC = () => {
                     autoFocus
                     value={tabName}
                     onChange={(event) => setTabName(event.target.value)}
+                    maxLength={100}
                     onKeyDown={(event) => {
                         if (event.key === 'Enter') openTab();
                     }}
