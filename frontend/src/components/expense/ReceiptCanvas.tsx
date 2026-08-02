@@ -404,7 +404,7 @@ const ReceiptCanvas: React.FC<ReceiptCanvasProps> = ({
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
-                className="border border-gray-300 dark:border-gray-600 rounded max-w-full"
+                className="border border-sw-line rounded-sw-row max-w-full"
                 style={{ touchAction: 'none' }}
             />
         </div>

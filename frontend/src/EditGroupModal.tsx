@@ -3,6 +3,8 @@ import { api } from './services/api';
 import IconSelector from './components/expense/IconSelector';
 import { useCurrencyPreferences } from './hooks/useCurrencyPreferences';
 import { formatCurrencyDisplay } from './utils/currencyHelpers';
+import { Button, Notice } from './components/ui';
+import { CONTROL_CLASS } from './components/ui/controlClass';
 
 interface Group {
     id: number;
@@ -74,15 +76,23 @@ const EditGroupModal: React.FC<EditGroupModalProps> = ({ isOpen, onClose, group,
 
     return (
         <div
-            className="fixed inset-0 bg-gray-600 dark:bg-gray-900/75 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/55 overflow-y-auto h-full w-full flex items-center justify-center z-50 p-4 font-sans"
             onClick={handleBackdropClick}
         >
-            <div className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-xl dark:shadow-gray-900/50 w-96">
-                <h2 className="text-xl font-bold mb-4 dark:text-gray-100">Edit Group</h2>
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Edit group"
+                className="bg-sw-surface text-sw-text p-5 rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)] w-full max-w-sm"
+            >
+                <h2 className="sw-heading text-[17px] mb-4">Edit group</h2>
                 <form onSubmit={handleSubmit}>
                     <div className="mb-4">
-                        <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">
-                            Group Name
+                        <label
+                            className="block text-[12.5px] text-sw-muted mb-1.5"
+                            htmlFor="edit-group-name"
+                        >
+                            Group name
                         </label>
                         <div className="flex items-center gap-2">
                             <IconSelector
@@ -90,8 +100,9 @@ const EditGroupModal: React.FC<EditGroupModalProps> = ({ isOpen, onClose, group,
                                 onIconSelect={setSelectedIcon}
                             />
                             <input
+                                id="edit-group-name"
                                 type="text"
-                                className="flex-1 border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 dark:bg-gray-800 dark:text-gray-100"
+                                className={CONTROL_CLASS}
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 required
@@ -100,13 +111,17 @@ const EditGroupModal: React.FC<EditGroupModalProps> = ({ isOpen, onClose, group,
                     </div>
 
                     <div className="mb-4">
-                        <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">
-                            Default Currency
+                        <label
+                            className="block text-[12.5px] text-sw-muted mb-1.5"
+                            htmlFor="edit-group-currency"
+                        >
+                            Default currency
                         </label>
                         <select
+                            id="edit-group-currency"
                             value={currency}
                             onChange={(e) => setCurrency(e.target.value)}
-                            className="w-full border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 bg-white dark:bg-gray-700 dark:text-gray-100"
+                            className={CONTROL_CLASS}
                         >
                             {sortedCurrencies.map(c => (
                                 <option key={c.code} value={c.code}>
@@ -114,31 +129,24 @@ const EditGroupModal: React.FC<EditGroupModalProps> = ({ isOpen, onClose, group,
                                 </option>
                             ))}
                         </select>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <p className="text-[11.5px] text-sw-dim mt-1.5">
                             New expenses will default to this currency
                         </p>
                     </div>
 
                     {error && (
-                        <p className="mb-4 text-sm text-red-500 dark:text-red-400">{error}</p>
+                        <Notice tone="error" className="mb-4">
+                            {error}
+                        </Notice>
                     )}
 
-                    <div className="flex justify-end space-x-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                            disabled={isSubmitting}
-                        >
+                    <div className="flex justify-end gap-2">
+                        <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
                             Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            className="px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600 disabled:opacity-50"
-                            disabled={isSubmitting}
-                        >
-                            {isSubmitting ? 'Saving...' : 'Save'}
-                        </button>
+                        </Button>
+                        <Button type="submit" variant="primary" disabled={isSubmitting}>
+                            {isSubmitting ? 'Saving…' : 'Save'}
+                        </Button>
                     </div>
                 </form>
             </div>

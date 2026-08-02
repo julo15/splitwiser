@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PendingOperation } from '../db';
+import { Button, Card } from './ui';
 
 interface SyncConflictModalProps {
   conflict: PendingOperation;
@@ -35,46 +36,47 @@ const SyncConflictModal: React.FC<SyncConflictModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/55 flex items-center justify-center z-50 p-4 font-sans"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4">
-        <h3 className="text-lg font-semibold mb-4 dark:text-white">
-          Sync Conflict
-        </h3>
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-label="Sync conflict"
+        className="bg-sw-surface text-sw-text rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)] p-6 max-w-md w-full"
+      >
+        <h3 className="sw-heading text-[17px] mb-4">Sync conflict</h3>
 
-        <p className="text-gray-600 dark:text-gray-300 mb-4">
+        <p className="text-[12.5px] text-sw-muted mb-4">
           {getConflictMessage()}
         </p>
 
-        <div className="bg-gray-100 dark:bg-gray-700 rounded p-3 mb-4 text-sm">
-          <p className="dark:text-gray-200">
-            <strong>Operation:</strong> {conflict.type}
+        <Card tone="sunk" className="p-3 mb-4 text-[12.5px]">
+          <p>
+            <span className="text-sw-muted">Operation:</span> {conflict.type}
           </p>
-          <p className="dark:text-gray-200">
-            <strong>Created:</strong>{' '}
+          <p>
+            <span className="text-sw-muted">Created:</span>{' '}
             {new Date(conflict.created_at).toLocaleString()}
           </p>
           {conflict.last_error && (
-            <p className="text-red-500 mt-2">
-              <strong>Error:</strong> {conflict.last_error}
+            <p className="text-sw-neg mt-2">
+              <span className="text-sw-muted">Error:</span> {conflict.last_error}
             </p>
           )}
-        </div>
+        </Card>
 
-        <div className="flex gap-3 justify-end">
-          <button
+        <div className="flex gap-2 justify-end">
+          <Button
+            variant="secondary"
             onClick={() => onResolve('discard')}
-            className="px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+            className="text-sw-neg border-sw-neg"
           >
-            Discard Local
-          </button>
-          <button
-            onClick={() => onResolve('retry')}
-            className="px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600"
-          >
-            Retry Sync
-          </button>
+            Discard local
+          </Button>
+          <Button variant="primary" onClick={() => onResolve('retry')}>
+            Retry sync
+          </Button>
         </div>
       </div>
     </div>

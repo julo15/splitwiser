@@ -1,6 +1,23 @@
 import React from 'react';
+import { CaretRight, X } from '@phosphor-icons/react';
 import type { ExpenseItem, Participant } from '../../types/expense';
 import { shouldUseCompactMode, getAssignmentDisplayText, sortParticipants } from '../../utils/participantHelpers';
+import { SegmentedControl } from '../ui';
+
+/** The per-item split methods. Narrower than the expense-level `SplitType` —
+ *  an item cannot itself be itemized. */
+type ItemSplitType = 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES';
+
+const SPLIT_OPTIONS: { value: ItemSplitType; label: string }[] = [
+    { value: 'EQUAL', label: 'Equal' },
+    { value: 'EXACT', label: 'Exact' },
+    { value: 'PERCENT', label: '%' },
+    { value: 'SHARES', label: 'Shares' },
+];
+
+/** The small number inputs beside a person's name in a non-equal split. */
+const SPLIT_INPUT_CLASS =
+    'px-2 py-1 text-sm sw-num rounded-md bg-sw-sunk text-sw-text border border-sw-line focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2';
 
 interface ExpenseItemListProps {
     items: ExpenseItem[];
@@ -30,7 +47,7 @@ const ExpenseItemList: React.FC<ExpenseItemListProps> = ({
 
     if (items.length === 0) {
         return (
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+            <p className="text-[12.5px] text-sw-dim text-center py-4">
                 No items yet. Scan a receipt or add items manually.
             </p>
         );
@@ -41,26 +58,26 @@ const ExpenseItemList: React.FC<ExpenseItemListProps> = ({
             {items.map((item, idx) => (
                 <div
                     key={idx}
-                    className={`bg-white dark:bg-gray-800 p-3 rounded border ${item.assignments.length === 0
-                        ? 'border-gray-300 dark:border-gray-500 border-dashed'
-                        : 'border-gray-200 dark:border-gray-600'
+                    className={`bg-sw-surface p-3 rounded-sw-card ${item.assignments.length === 0
+                        ? 'border border-dashed border-sw-line'
+                        : 'shadow-[0_0_0_1px_var(--sw-line)]'
                         }`}
                 >
                     <div className="flex justify-between items-center mb-3">
-                        <span className="font-medium text-sm flex-1 pr-2 dark:text-gray-100">
+                        <span className="font-medium text-sm flex-1 pr-2 text-sw-text">
                             {item.description}
                         </span>
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-600 dark:text-gray-400 font-semibold whitespace-nowrap">
+                            <span className="text-sm sw-num text-sw-muted font-medium whitespace-nowrap">
                                 ${(item.price / 100).toFixed(2)}
                             </span>
                             <button
                                 type="button"
                                 onClick={() => onRemoveItem(idx)}
                                 aria-label="Remove item"
-                                className="text-red-400 hover:text-red-600 text-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
+                                className="text-sw-dim hover:text-sw-neg min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer rounded-lg focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                             >
-                                ×
+                                <X size={16} />
                             </button>
                         </div>
                     </div>
@@ -72,17 +89,15 @@ const ExpenseItemList: React.FC<ExpenseItemListProps> = ({
                             <button
                                 type="button"
                                 onClick={() => onOpenSelector(idx)}
-                                className={`w-full px-4 py-3 rounded-lg border text-left flex items-center justify-between min-h-[44px] ${item.assignments.length === 0
-                                    ? 'border-orange-300 dark:border-orange-500 border-dashed bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 font-medium'
-                                    : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                                className={`w-full px-3 py-2.5 rounded-sw-row text-left flex items-center justify-between gap-2 min-h-[44px] cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 ${item.assignments.length === 0
+                                    ? 'border border-dashed border-sw-accent bg-sw-accent-ghost text-sw-accent font-medium'
+                                    : 'bg-sw-sunk text-sw-text shadow-[0_0_0_1px_var(--sw-line)] hover:bg-sw-raise'
                                     }`}
                             >
                                 <span className="text-sm">
                                     {getAssignmentDisplayText(item.assignments, participants, currentUserId)}
                                 </span>
-                                <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path d="M9 5l7 7-7 7"></path>
-                                </svg>
+                                <CaretRight size={16} className="text-sw-dim flex-none" />
                             </button>
                         </div>
                     ) : (
@@ -102,9 +117,10 @@ const ExpenseItemList: React.FC<ExpenseItemListProps> = ({
                                         key={p.isExpenseGuest ? `expenseguest_${p.id}` : (p.isGuest ? `guest_${p.id}` : `user_${p.id}`)}
                                         type="button"
                                         onClick={() => onToggleAssignment(idx, p)}
-                                        className={`px-3 py-2 text-sm rounded-full border min-h-[44px] ${isAssigned
-                                            ? 'bg-teal-100 dark:bg-teal-900/30 border-teal-500 dark:border-teal-600 text-teal-700 dark:text-teal-300'
-                                            : 'bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400'
+                                        aria-pressed={isAssigned}
+                                        className={`px-3 py-2 text-sm rounded-full min-h-[44px] cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 ${isAssigned
+                                            ? 'bg-sw-accent-ghost text-sw-accent shadow-[0_0_0_1px_var(--sw-accent)]'
+                                            : 'bg-sw-sunk text-sw-muted shadow-[0_0_0_1px_var(--sw-line)] hover:text-sw-text'
                                             }`}
                                     >
                                         {getParticipantName(p)}
@@ -116,28 +132,18 @@ const ExpenseItemList: React.FC<ExpenseItemListProps> = ({
 
                     {/* Split type selector and inputs when multiple people are assigned */}
                     {item.assignments.length > 1 && (
-                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                                    Split Method:
+                        <div className="mt-3 pt-3 border-t border-sw-line">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                                <span className="text-[11.5px] text-sw-muted">
+                                    Split method
                                 </span>
-                                <div className="flex gap-1">
-                                    {(['EQUAL', 'EXACT', 'PERCENT', 'SHARES'] as const).map(splitType => (
-                                        <button
-                                            key={splitType}
-                                            type="button"
-                                            onClick={() => onChangeSplitType?.(idx, splitType)}
-                                            className={`px-2 py-1 text-xs rounded ${(item.split_type || 'EQUAL') === splitType
-                                                ? 'bg-teal-500 text-white'
-                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                                                }`}
-                                        >
-                                            {splitType === 'EQUAL' ? 'Equal' :
-                                                splitType === 'EXACT' ? 'Exact' :
-                                                    splitType === 'PERCENT' ? '%' : 'Shares'}
-                                        </button>
-                                    ))}
-                                </div>
+                                <SegmentedControl
+                                    label="Split method"
+                                    size="sm"
+                                    options={SPLIT_OPTIONS}
+                                    value={(item.split_type || 'EQUAL') as ItemSplitType}
+                                    onChange={(splitType) => onChangeSplitType?.(idx, splitType)}
+                                />
                             </div>
 
                             {/* Show input fields based on split type */}
@@ -159,21 +165,22 @@ const ExpenseItemList: React.FC<ExpenseItemListProps> = ({
 
                                             return (
                                                 <div key={participantKey} className="flex items-center gap-2">
-                                                    <span className="text-sm text-gray-600 dark:text-gray-400 flex-1">
-                                                        {getParticipantName(participant)}:
+                                                    <span className="text-sm text-sw-muted flex-1">
+                                                        {getParticipantName(participant)}
                                                     </span>
                                                 {item.split_type === 'EXACT' && (
                                                     <div className="flex items-center gap-1">
-                                                        <span className="text-sm text-gray-500">$</span>
+                                                        <span className="text-sm text-sw-dim">$</span>
                                                         <input
                                                             type="number"
                                                             step="0.01"
+                                                            aria-label={`Amount for ${getParticipantName(participant)}`}
                                                             value={(splitDetail?.amount || 0) / 100}
                                                             onChange={(e) => {
                                                                 const amount = Math.round(parseFloat(e.target.value || '0') * 100);
                                                                 onUpdateSplitDetail?.(idx, participantKey, { amount });
                                                             }}
-                                                            className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                                                            className={`${SPLIT_INPUT_CLASS} w-20`}
                                                         />
                                                     </div>
                                                 )}
@@ -184,14 +191,15 @@ const ExpenseItemList: React.FC<ExpenseItemListProps> = ({
                                                             step="1"
                                                             min="0"
                                                             max="100"
+                                                            aria-label={`Percentage for ${getParticipantName(participant)}`}
                                                             value={splitDetail?.percentage || 0}
                                                             onChange={(e) => {
                                                                 const percentage = parseFloat(e.target.value || '0');
                                                                 onUpdateSplitDetail?.(idx, participantKey, { percentage });
                                                             }}
-                                                            className="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                                                            className={`${SPLIT_INPUT_CLASS} w-16`}
                                                         />
-                                                        <span className="text-sm text-gray-500">%</span>
+                                                        <span className="text-sm text-sw-dim">%</span>
                                                     </div>
                                                 )}
                                                 {item.split_type === 'SHARES' && (
@@ -199,12 +207,13 @@ const ExpenseItemList: React.FC<ExpenseItemListProps> = ({
                                                         type="number"
                                                         step="1"
                                                         min="0"
+                                                        aria-label={`Shares for ${getParticipantName(participant)}`}
                                                         value={splitDetail?.shares || 1}
                                                         onChange={(e) => {
                                                             const shares = parseInt(e.target.value || '1');
                                                             onUpdateSplitDetail?.(idx, participantKey, { shares: Math.max(1, shares) });
                                                         }}
-                                                        className="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                                                        className={`${SPLIT_INPUT_CLASS} w-16`}
                                                     />
                                                 )}
                                             </div>

@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { X } from '@phosphor-icons/react';
+import { Button, Field, Notice } from './ui';
+import { CONTROL_CLASS } from './ui/controlClass';
 
 interface AddItemModalProps {
     isOpen: boolean;
@@ -41,55 +44,53 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose, onAdd }) =
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 font-sans">
             {/* Backdrop */}
-            <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+            <div className="fixed inset-0 bg-black/55" onClick={onClose} />
 
             {/* Modal */}
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-auto">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Add item"
+                className="relative bg-sw-surface text-sw-text rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)] max-w-md w-full mx-auto"
+            >
                 <form onSubmit={handleSubmit}>
                     {/* Header */}
-                    <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-                        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                            Add Item
-                        </h2>
+                    <div className="flex justify-between items-center p-5 border-b border-sw-line">
+                        <h2 className="sw-heading text-[17px]">Add item</h2>
                         <button
                             type="button"
                             onClick={onClose}
                             aria-label="Close modal"
-                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                            className="text-sw-dim hover:text-sw-text min-w-[44px] min-h-[44px] -mr-3 flex items-center justify-center cursor-pointer focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 rounded-lg"
                         >
-                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                            <X size={20} />
                         </button>
                     </div>
 
                     {/* Body */}
-                    <div className="p-6 space-y-4">
+                    <div className="p-5 space-y-4">
                         {/* Description Input */}
-                        <div>
-                            <label htmlFor="item-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Item Description
-                            </label>
-                            <input
-                                id="item-description"
-                                type="text"
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                placeholder="e.g., Burger"
-                                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 min-h-[44px]"
-                                autoFocus
-                            />
-                        </div>
+                        <Field
+                            label="Item description"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="e.g., Burger"
+                            className="min-h-[44px]"
+                            autoFocus
+                        />
 
                         {/* Price Input */}
-                        <div>
-                            <label htmlFor="item-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <div className="flex flex-col gap-1.5">
+                            <label htmlFor="item-price" className="text-[12.5px] text-sw-muted">
                                 Price
                             </label>
                             <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
+                                <span
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-sw-dim"
+                                    aria-hidden="true"
+                                >
                                     $
                                 </span>
                                 <input
@@ -100,34 +101,31 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ isOpen, onClose, onAdd }) =
                                     value={priceStr}
                                     onChange={(e) => setPriceStr(e.target.value)}
                                     placeholder="12.99"
-                                    className="w-full pl-8 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 min-h-[44px]"
+                                    className={`${CONTROL_CLASS} sw-num pl-7 min-h-[44px]`}
                                 />
                             </div>
                         </div>
 
                         {/* Error Message */}
-                        {error && (
-                            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-                            </div>
-                        )}
+                        {error && <Notice tone="error">{error}</Notice>}
                     </div>
 
                     {/* Footer */}
-                    <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
-                        <button
-                            type="button"
+                    <div className="flex gap-3 p-5 border-t border-sw-line">
+                        <Button
+                            variant="secondary"
                             onClick={onClose}
-                            className="flex-1 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 min-h-[44px]"
+                            className="flex-1 py-3 min-h-[44px]"
                         >
                             Cancel
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="submit"
-                            className="flex-1 px-4 py-3 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg min-h-[44px]"
+                            variant="primary"
+                            className="flex-1 py-3 min-h-[44px]"
                         >
-                            Add Item
-                        </button>
+                            Add item
+                        </Button>
                     </div>
                 </form>
             </div>

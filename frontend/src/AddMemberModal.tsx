@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Plus, X } from '@phosphor-icons/react';
 import { api } from './services/api';
+import { Button, Field, Notice } from './components/ui';
+import { CONTROL_CLASS } from './components/ui/controlClass';
 
 interface Friend {
     id: number;
@@ -90,21 +93,25 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose, onMemb
 
     return (
         <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end md:items-center justify-center"
+            className="fixed inset-0 bg-black/55 z-50 flex items-end md:items-center justify-center font-sans"
             onClick={handleBackdropClick}
         >
-            <div className="bg-white dark:bg-gray-800 w-full md:w-[480px] md:rounded-lg shadow-xl transform transition-all max-h-[90vh] overflow-y-auto rounded-t-2xl md:rounded-2xl">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Add member"
+                className="bg-sw-surface text-sw-text w-full md:w-[480px] max-h-[90vh] overflow-y-auto rounded-t-sw-sheet md:rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)]"
+            >
                 {/* Header */}
-                <div className="flex items-center justify-between p-5 border-b dark:border-gray-700">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Add Member</h2>
+                <div className="flex items-center justify-between p-5 border-b border-sw-line">
+                    <h2 className="sw-heading text-[17px]">Add member</h2>
                     <button
+                        type="button"
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-2 -mr-2"
+                        className="text-sw-dim hover:text-sw-text p-2 -mr-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 rounded-lg"
                         aria-label="Close"
                     >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <X size={20} />
                     </button>
                 </div>
 
@@ -113,18 +120,19 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose, onMemb
                     {/* Quick-select friends */}
                     {friends.length > 0 && (
                         <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                                Quick Add from Friends
+                            <h3 className="text-[11px] uppercase tracking-[0.09em] text-sw-dim mb-3">
+                                Quick add from friends
                             </h3>
 
                             {/* Search input */}
                             <div className="mb-3">
                                 <input
                                     type="text"
-                                    placeholder="Search friends..."
+                                    aria-label="Search friends"
+                                    placeholder="Search friends…"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:border-teal-500 dark:focus:border-teal-400 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+                                    className={CONTROL_CLASS}
                                 />
                             </div>
 
@@ -132,23 +140,19 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose, onMemb
                             <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
                                 {filteredFriends.length > 0 ? (
                                     filteredFriends.map(friend => (
-                                        <button
+                                        <Button
                                             key={friend.id}
-                                            type="button"
+                                            variant="secondary"
                                             onClick={() => handleFriendClick(friend.email)}
                                             disabled={isSubmitting}
-                                            className="inline-flex items-center px-3 py-2 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700 rounded-lg hover:bg-teal-100 dark:hover:bg-teal-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                                            icon={<Plus size={14} />}
+                                            className="px-3 py-2 min-h-[44px]"
                                         >
-                                            <svg className="w-4 h-4 mr-2 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                            </svg>
-                                            <span className="text-sm font-medium text-teal-700 dark:text-teal-300">
-                                                {friend.full_name}
-                                            </span>
-                                        </button>
+                                            {friend.full_name}
+                                        </Button>
                                     ))
                                 ) : (
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 italic py-2">
+                                    <p className="text-[12.5px] text-sw-dim py-2">
                                         No friends match your search
                                     </p>
                                 )}
@@ -160,10 +164,10 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose, onMemb
                     {friends.length > 0 && (
                         <div className="relative mb-6">
                             <div className="absolute inset-0 flex items-center">
-                                <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                                <div className="w-full border-t border-sw-line"></div>
                             </div>
-                            <div className="relative flex justify-center text-sm">
-                                <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                            <div className="relative flex justify-center">
+                                <span className="px-2 bg-sw-surface text-[11px] uppercase tracking-[0.09em] text-sw-dim">
                                     Or add by email
                                 </span>
                             </div>
@@ -173,45 +177,41 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose, onMemb
                     {/* Email form */}
                     <form onSubmit={handleSubmit}>
                         <div className="mb-6">
-                            <label className="block text-gray-700 dark:text-gray-300 text-sm font-semibold mb-2">
-                                Member's Email Address
-                            </label>
-                            <input
+                            <Field
+                                label="Member's email address"
                                 type="email"
-                                className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:border-teal-500 dark:focus:border-teal-400 dark:bg-gray-700 dark:text-gray-100 transition-colors"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="member@example.com"
+                                hint="They must have a Splitwiser account to join the group"
                                 autoFocus={friends.length === 0}
                                 required
                             />
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                They must have a Splitwiser account to join the group
-                            </p>
                         </div>
 
                         {error && (
-                            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-                            </div>
+                            <Notice tone="error" className="mb-4">
+                                {error}
+                            </Notice>
                         )}
 
                         <div className="flex flex-col-reverse md:flex-row gap-3">
-                            <button
-                                type="button"
+                            <Button
+                                variant="secondary"
                                 onClick={onClose}
-                                className="flex-1 px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors min-h-[44px]"
                                 disabled={isSubmitting}
+                                className="flex-1 py-3 min-h-[44px]"
                             >
                                 Cancel
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                                 type="submit"
-                                className="flex-1 px-6 py-3 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors min-h-[44px]"
+                                variant="primary"
                                 disabled={isSubmitting}
+                                className="flex-1 py-3 min-h-[44px]"
                             >
-                                {isSubmitting ? 'Adding...' : 'Add Member'}
-                            </button>
+                                {isSubmitting ? 'Adding…' : 'Add member'}
+                            </Button>
                         </div>
                     </form>
                 </div>

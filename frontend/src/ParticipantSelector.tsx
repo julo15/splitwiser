@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Check } from '@phosphor-icons/react';
+import { Button, TagPill } from './components/ui';
+import { CONTROL_CLASS } from './components/ui/controlClass';
 
 interface Participant {
     id: number;
@@ -75,40 +78,44 @@ const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-gray-600 dark:bg-gray-900/75 bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl dark:shadow-gray-900/50 w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/55 z-50 flex items-center justify-center p-4 font-sans">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Select people"
+                className="bg-sw-surface text-sw-text rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)] w-full max-w-lg max-h-[80vh] flex flex-col"
+            >
                 {/* Header */}
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                        Select People
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{itemDescription}</p>
+                <div className="p-4 border-b border-sw-line">
+                    <h3 className="sw-heading text-[17px] mb-1">Select people</h3>
+                    <p className="text-[12.5px] text-sw-dim truncate">{itemDescription}</p>
                 </div>
 
                 {/* Search and Quick Actions */}
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 space-y-3">
+                <div className="p-4 border-b border-sw-line space-y-3">
                     <input
                         type="text"
-                        placeholder="Search people..."
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:border-teal-500 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+                        aria-label="Search people"
+                        placeholder="Search people…"
+                        className={CONTROL_CLASS}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                     <div className="flex gap-2">
-                        <button
-                            type="button"
+                        <Button
+                            variant="secondary"
                             onClick={selectAll}
-                            className="flex-1 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-600 min-h-[44px]"
+                            className="flex-1 min-h-[44px]"
                         >
-                            Select All ({participants.length})
-                        </button>
-                        <button
-                            type="button"
+                            Select all ({participants.length})
+                        </Button>
+                        <Button
+                            variant="secondary"
                             onClick={selectNone}
-                            className="flex-1 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-600 min-h-[44px]"
+                            className="flex-1 min-h-[44px]"
                         >
-                            Clear All
-                        </button>
+                            Clear all
+                        </Button>
                     </div>
                 </div>
 
@@ -125,60 +132,60 @@ const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
                                     type="button"
                                     onClick={() => toggleParticipant(p)}
                                     aria-pressed={isSelected}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-colors min-h-[44px] ${isSelected
-                                            ? p.isGuest
-                                                ? 'bg-orange-50 dark:bg-orange-900/30 border-orange-500 dark:border-orange-600 text-orange-900 dark:text-orange-200'
-                                                : 'bg-teal-50 dark:bg-teal-900/30 border-teal-500 dark:border-teal-600 text-teal-900 dark:text-teal-200'
-                                            : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
-                                        }`}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-sw-row text-left transition-colors min-h-[44px] cursor-pointer focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 ${
+                                        isSelected
+                                            ? 'bg-sw-accent-ghost shadow-[0_0_0_1px_var(--sw-accent)]'
+                                            : 'bg-sw-sunk shadow-[0_0_0_1px_var(--sw-line)] hover:bg-sw-raise'
+                                    }`}
                                 >
-                                    <div className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center ${isSelected
-                                            ? p.isGuest
-                                                ? 'border-orange-500 bg-orange-500'
-                                                : 'border-teal-500 bg-teal-500'
-                                            : 'border-gray-300'
-                                        }`}>
-                                        {isSelected && (
-                                            <svg className="w-3 h-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path d="M5 13l4 4L19 7"></path>
-                                            </svg>
-                                        )}
+                                    {/*
+                                     * Guests used to be told apart by a second
+                                     * accent colour. The redesign has only one,
+                                     * so the distinction moves to a label —
+                                     * which says what it means rather than
+                                     * asking you to remember what orange meant.
+                                     */}
+                                    <div
+                                        className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center ${
+                                            isSelected
+                                                ? 'bg-sw-accent text-sw-on-accent'
+                                                : 'shadow-[0_0_0_1.5px_var(--sw-line)]'
+                                        }`}
+                                    >
+                                        {isSelected && <Check size={12} weight="bold" />}
                                     </div>
-                                    <span className="text-sm font-medium truncate">
+                                    <span className="text-sm font-medium truncate flex-1 min-w-0">
                                         {p.name}
                                     </span>
+                                    {p.isGuest && (
+                                        <TagPill tone="neutral" className="flex-none">
+                                            Guest
+                                        </TagPill>
+                                    )}
                                 </button>
                             );
                         })}
                     </div>
 
                     {filteredParticipants.length === 0 && (
-                        <p className="text-center text-gray-500 dark:text-gray-400 text-sm py-8">
+                        <p className="text-center text-[12.5px] text-sw-dim py-8">
                             No people found
                         </p>
                     )}
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="p-4 border-t border-sw-line flex items-center justify-between">
+                    <span className="text-[12.5px] text-sw-muted">
                         {selected.size} of {participants.length} selected
                     </span>
                     <div className="flex gap-2">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 min-h-[44px]"
-                        >
+                        <Button variant="ghost" onClick={onClose}>
                             Cancel
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleConfirm}
-                            className="px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600 min-h-[44px]"
-                        >
+                        </Button>
+                        <Button variant="primary" onClick={handleConfirm}>
                             Done
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>

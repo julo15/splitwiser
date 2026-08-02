@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { ArrowRight, Check, CheckCircle, X } from '@phosphor-icons/react';
 import { api } from './services/api';
 import { formatMoney } from './utils/formatters';
+import { Avatar, Button, Card, Money, Notice } from './components/ui';
 
 interface SimplifiedTransaction {
   from_id: number;
@@ -118,189 +120,156 @@ const SimplifyDebtsModal: React.FC<SimplifyDebtsModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black/55 flex items-center justify-center p-4 z-50 font-sans"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Simplified debts"
+        className="bg-sw-surface text-sw-text rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)] max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-start justify-between gap-3 p-5 border-b border-sw-line">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Simplified Debts</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <h2 className="sw-heading text-[19px]">Simplified debts</h2>
+            <p className="text-[12.5px] text-sw-dim mt-1">
               Minimum transactions needed to settle all group balances
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="text-sw-dim hover:text-sw-text p-2 -mr-2 -mt-1 cursor-pointer focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 rounded-lg"
             aria-label="Close"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={20} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-5">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500"></div>
-              <p className="mt-4 text-gray-600 dark:text-gray-400">Calculating optimal payments...</p>
+              <div className="animate-spin rounded-full h-10 w-10 border-2 border-sw-line border-t-sw-accent"></div>
+              <p className="mt-4 text-[12.5px] text-sw-muted">Calculating optimal payments…</p>
             </div>
           ) : error ? (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div className="flex-1">
-                  <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Error</h3>
-                  <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
-                </div>
-              </div>
-            </div>
+            <Notice tone="error">{error}</Notice>
           ) : transactions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-16 h-16 bg-teal-100 dark:bg-teal-900/30 rounded-full flex items-center justify-center mb-4">
-                <svg className="w-8 h-8 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+              <div className="w-16 h-16 bg-sw-pos-soft text-sw-pos rounded-full flex items-center justify-center mb-4">
+                <CheckCircle size={32} weight="fill" aria-hidden="true" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">All Settled Up!</h3>
-              <p className="text-gray-600 dark:text-gray-400 text-center">
+              <h3 className="sw-heading text-[17px] mb-1.5">All settled up</h3>
+              <p className="text-[12.5px] text-sw-muted text-center">
                 Everyone is even. No payments needed.
               </p>
             </div>
           ) : (
             <div className="space-y-4">
               {/* Info Banner */}
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">How it works</h3>
-                    <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                      These {transactions.length} payment{transactions.length !== 1 ? 's' : ''} will settle all balances in the group.
-                      {transactions.length > 0 && transactions[0].currency !== 'USD' && (
-                        <> All amounts are shown in {transactions[0].currency} (the group's default currency), converted using historical exchange rates.</>
-                      )}
-                      {transactions.length > 0 && transactions[0].currency === 'USD' && (
-                        <> All amounts are shown in USD, converted using historical exchange rates.</>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <Notice tone="info">
+                These {transactions.length} payment{transactions.length !== 1 ? 's' : ''} will settle all balances in the group.
+                {transactions.length > 0 && transactions[0].currency !== 'USD' && (
+                  <> All amounts are shown in {transactions[0].currency} (the group's default currency), converted using historical exchange rates.</>
+                )}
+                {transactions.length > 0 && transactions[0].currency === 'USD' && (
+                  <> All amounts are shown in USD, converted using historical exchange rates.</>
+                )}
+              </Notice>
 
               {/* Transaction List */}
               <div className="space-y-3">
-                {transactions.map((transaction, index) => (
-                  <div
-                    key={index}
-                    className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-teal-400 dark:hover:border-teal-500 transition-colors"
-                  >
-                    <div className="flex items-center justify-between gap-4 mb-3">
-                      {/* From Person */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center flex-shrink-0">
-                            <span className="text-lg">👤</span>
+                {transactions.map((transaction, index) => {
+                  const payerName = getParticipantName(transaction.from_id, transaction.from_is_guest);
+                  const payeeName = getParticipantName(transaction.to_id, transaction.to_is_guest);
+                  return (
+                    <Card key={index} tone="sunk" className="p-4">
+                      <div className="flex items-center justify-between gap-4 mb-3">
+                        {/* From Person */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Avatar name={payerName} size={38} />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{payerName}</p>
+                              <p className="text-[11.5px] text-sw-dim">Pays</p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                              {getParticipantName(transaction.from_id, transaction.from_is_guest)}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Pays</p>
+                        </div>
+
+                        {/* Arrow and Amount */}
+                        <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                          <ArrowRight size={20} className="text-sw-dim" aria-hidden="true" />
+                          <Money
+                            amount={transaction.amount}
+                            currency={transaction.currency}
+                            className="sw-display text-[17px]"
+                          />
+                        </div>
+
+                        {/* To Person */}
+                        <div className="flex-1 min-w-0 flex justify-end">
+                          <div className="flex items-center gap-2">
+                            <div className="min-w-0 text-right">
+                              <p className="text-sm font-medium truncate">{payeeName}</p>
+                              <p className="text-[11.5px] text-sw-dim">Receives</p>
+                            </div>
+                            <Avatar name={payeeName} variant="accent" size={38} />
                           </div>
                         </div>
                       </div>
 
-                      {/* Arrow and Amount */}
-                      <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                        </svg>
-                        <span className="text-lg font-bold text-teal-600 dark:text-teal-400">
-                          {formatMoney(transaction.amount, transaction.currency)}
-                        </span>
+                      {/* Mark as Paid Button */}
+                      <div className="flex justify-end">
+                        <Button
+                          variant="primary"
+                          onClick={() => handleMarkAsPaid(transaction, index)}
+                          disabled={processingPaymentIndex === index}
+                          icon={
+                            processingPaymentIndex === index ? (
+                              <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-sw-line border-t-sw-accent" />
+                            ) : (
+                              <Check size={14} />
+                            )
+                          }
+                        >
+                          {processingPaymentIndex === index ? 'Processing…' : 'Mark as paid'}
+                        </Button>
                       </div>
-
-                      {/* To Person */}
-                      <div className="flex-1 min-w-0 flex justify-end">
-                        <div className="flex items-center gap-2">
-                          <div className="min-w-0 text-right">
-                            <p className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                              {getParticipantName(transaction.to_id, transaction.to_is_guest)}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Receives</p>
-                          </div>
-                          <div className="w-10 h-10 bg-teal-100 dark:bg-teal-900/30 rounded-full flex items-center justify-center flex-shrink-0">
-                            <span className="text-lg">👤</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Mark as Paid Button */}
-                    <div className="flex justify-end">
-                      <button
-                        onClick={() => handleMarkAsPaid(transaction, index)}
-                        disabled={processingPaymentIndex === index}
-                        className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      >
-                        {processingPaymentIndex === index ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            <span>Processing...</span>
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            <span>Mark as Paid</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
 
               {/* Summary */}
-              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Total transactions:</span>
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">{transactions.length}</span>
+              <Card tone="sunk" className="p-4">
+                <div className="flex items-center justify-between text-[12.5px]">
+                  <span className="text-sw-muted">Total transactions</span>
+                  <span className="sw-num font-medium">{transactions.length}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm mt-2">
-                  <span className="text-gray-600 dark:text-gray-400">Total amount to transfer:</span>
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">
-                    {formatMoney(
-                      transactions.reduce((sum, t) => sum + t.amount, 0),
-                      transactions.length > 0 ? transactions[0].currency : 'USD'
-                    )}
-                  </span>
+                <div className="flex items-center justify-between text-[12.5px] mt-2">
+                  <span className="text-sw-muted">Total amount to transfer</span>
+                  <Money
+                    amount={transactions.reduce((sum, t) => sum + t.amount, 0)}
+                    currency={transactions.length > 0 ? transactions[0].currency : 'USD'}
+                    className="font-medium"
+                  />
                 </div>
-              </div>
+              </Card>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium"
-            >
+        <div className="border-t border-sw-line p-5">
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={onClose}>
               Close
-            </button>
+            </Button>
             {transactions.length > 0 && (
-              <button
+              <Button
+                variant="primary"
                 onClick={() => {
                   // Copy transactions to clipboard as text
                   const text = transactions
@@ -311,10 +280,9 @@ const SimplifyDebtsModal: React.FC<SimplifyDebtsModalProps> = ({
                   navigator.clipboard.writeText(text);
                   // You could add a toast notification here
                 }}
-                className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors font-medium"
               >
-                Copy to Clipboard
-              </button>
+                Copy to clipboard
+              </Button>
             )}
           </div>
         </div>

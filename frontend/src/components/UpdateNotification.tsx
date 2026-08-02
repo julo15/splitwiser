@@ -23,29 +23,17 @@ export function UpdateNotification() {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 sm:left-auto sm:right-4 sm:w-96">
-      <div className="rounded-lg bg-teal-600 p-4 shadow-lg dark:bg-teal-700">
+      <div className="rounded-sw-card-lg bg-sw-surface text-sw-text p-4 shadow-[0_0_0_1px_var(--sw-line),0_6px_20px_rgb(0_0_0/0.28)] font-sans">
         <div className="flex items-start">
           <div className="flex-shrink-0">
-            <svg
-              className="h-6 w-6 text-white animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth="1.5"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
-              />
-            </svg>
+            <span className="block h-5 w-5 mt-px animate-spin rounded-full border-2 border-sw-line border-t-sw-accent" />
           </div>
           <div className="ml-3 flex-1">
-            <p className="text-sm font-medium text-white">
+            <p className="text-sm font-medium">
               Update available
             </p>
-            <p className="mt-1 text-sm text-teal-100">
-              Applying the latest version...
+            <p className="mt-1 text-[12.5px] text-sw-muted">
+              Applying the latest version…
             </p>
           </div>
         </div>

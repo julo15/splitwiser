@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { X } from '@phosphor-icons/react';
 import IconSelector from './components/expense/IconSelector';
 import { useCurrencyPreferences } from './hooks/useCurrencyPreferences';
 import { formatCurrencyDisplay } from './utils/currencyHelpers';
 import { offlineGroupsApi } from './services/offlineApi';
 import { useSync } from './contexts/SyncContext';
+import { Button, Notice } from './components/ui';
+import { CONTROL_CLASS } from './components/ui/controlClass';
 
 interface AddGroupModalProps {
     isOpen: boolean;
@@ -73,29 +76,36 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({ isOpen, onClose, onGroupA
 
     return (
         <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end md:items-center justify-center"
+            className="fixed inset-0 bg-black/55 z-50 flex items-end md:items-center justify-center font-sans"
             onClick={handleBackdropClick}
         >
-            <div className="bg-white dark:bg-gray-800 w-full md:w-[400px] md:rounded-lg shadow-xl transform transition-all max-h-[90vh] overflow-y-auto rounded-t-2xl md:rounded-2xl">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Create new group"
+                className="bg-sw-surface text-sw-text w-full md:w-[400px] max-h-[90vh] overflow-y-auto rounded-t-sw-sheet md:rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)]"
+            >
                 {/* Header */}
-                <div className="flex items-center justify-between p-5 border-b dark:border-gray-700">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Create New Group</h2>
+                <div className="flex items-center justify-between p-5 border-b border-sw-line">
+                    <h2 className="sw-heading text-[17px]">Create new group</h2>
                     <button
+                        type="button"
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-2 -mr-2"
+                        className="text-sw-dim hover:text-sw-text p-2 -mr-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 rounded-lg"
                         aria-label="Close"
                     >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <X size={20} />
                     </button>
                 </div>
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="p-5">
                     <div className="mb-6">
-                        <label className="block text-gray-700 dark:text-gray-300 text-sm font-semibold mb-2">
-                            Group Name
+                        <label
+                            className="block text-[12.5px] text-sw-muted mb-1.5"
+                            htmlFor="new-group-name"
+                        >
+                            Group name
                         </label>
                         <div className="flex items-center gap-2">
                             <IconSelector
@@ -103,8 +113,9 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({ isOpen, onClose, onGroupA
                                 onIconSelect={setSelectedIcon}
                             />
                             <input
+                                id="new-group-name"
                                 type="text"
-                                className="flex-1 px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:border-teal-500 dark:focus:border-teal-400 dark:bg-gray-700 dark:text-gray-100 transition-colors"
+                                className={CONTROL_CLASS}
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 placeholder="e.g., Weekend Trip, Roommates"
@@ -115,13 +126,17 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({ isOpen, onClose, onGroupA
                     </div>
 
                     <div className="mb-6">
-                        <label className="block text-gray-700 dark:text-gray-300 text-sm font-semibold mb-2">
-                            Default Currency
+                        <label
+                            className="block text-[12.5px] text-sw-muted mb-1.5"
+                            htmlFor="new-group-currency"
+                        >
+                            Default currency
                         </label>
                         <select
+                            id="new-group-currency"
                             value={currency}
                             onChange={(e) => setCurrency(e.target.value)}
-                            className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:border-teal-500 dark:focus:border-teal-400 bg-white dark:bg-gray-700 dark:text-gray-100 transition-colors"
+                            className={CONTROL_CLASS}
                         >
                             {sortedCurrencies.map(c => (
                                 <option key={c.code} value={c.code}>
@@ -129,33 +144,34 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({ isOpen, onClose, onGroupA
                                 </option>
                             ))}
                         </select>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        <p className="text-[11.5px] text-sw-dim mt-1.5">
                             New expenses will default to this currency
                         </p>
                     </div>
 
                     {error && (
-                        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-                        </div>
+                        <Notice tone="error" className="mb-4">
+                            {error}
+                        </Notice>
                     )}
 
                     <div className="flex flex-col-reverse md:flex-row gap-3">
-                        <button
-                            type="button"
+                        <Button
+                            variant="secondary"
                             onClick={onClose}
-                            className="flex-1 px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg font-medium transition-colors min-h-[44px]"
                             disabled={isSubmitting}
+                            className="flex-1 py-3 min-h-[44px]"
                         >
                             Cancel
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="submit"
-                            className="flex-1 px-6 py-3 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors min-h-[44px]"
+                            variant="primary"
                             disabled={isSubmitting}
+                            className="flex-1 py-3 min-h-[44px]"
                         >
-                            {isSubmitting ? 'Creating...' : 'Create Group'}
-                        </button>
+                            {isSubmitting ? 'Creating…' : 'Create group'}
+                        </Button>
                     </div>
                 </form>
             </div>

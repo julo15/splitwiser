@@ -1,4 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import {
+    ArrowSquareOut,
+    CaretRight,
+    Check,
+    Info,
+    Plus,
+    Warning,
+} from '@phosphor-icons/react';
 import ParticipantSelector from './ParticipantSelector';
 import ExpenseSplitTypeSelector from './components/expense/ExpenseSplitTypeSelector';
 import ExpenseItemList from './components/expense/ExpenseItemList';
@@ -38,6 +46,27 @@ import { expensesApi } from './services/api';
 import { offlineExpensesApi } from './services/offlineApi';
 import { useSync } from './contexts/SyncContext';
 import { getApiUrl } from './api';
+import { Button, Card, Money, Notice, TagPill } from './components/ui';
+import { CONTROL_CLASS } from './components/ui/controlClass';
+
+/** The label above each field in the edit form. */
+const LABEL_CLASS = 'block text-[12.5px] text-sw-muted mb-1.5';
+
+/** The section heading in view mode ("Items", "Receipt", "Split breakdown"). */
+const SECTION_CLASS =
+    'text-[11px] uppercase tracking-[0.09em] text-sw-dim mb-3';
+
+/** The small right-aligned money inputs for tax and tip. */
+const MONEY_INPUT_CLASS =
+    'w-28 sm:w-24 px-2.5 py-2 text-sm text-right sw-num rounded-sw-row bg-sw-sunk text-sw-text border border-sw-line placeholder:text-sw-dim min-h-[44px] focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2';
+
+/** A togglable person in the participants row. */
+const participantPillClass = (selected: boolean) =>
+    `px-4 py-2 rounded-full text-sm min-h-[44px] cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 ${
+        selected
+            ? 'bg-sw-accent-ghost text-sw-accent shadow-[0_0_0_1px_var(--sw-accent)]'
+            : 'bg-sw-sunk text-sw-muted shadow-[0_0_0_1px_var(--sw-line)] hover:text-sw-text'
+    }`;
 
 interface ExpenseDetailModalProps {
     isOpen: boolean;
@@ -497,7 +526,7 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
 
     return (
         <div
-            className="fixed inset-0 bg-gray-600 dark:bg-gray-900/75 bg-opacity-50 z-40 flex items-end md:items-center justify-center"
+            className="fixed inset-0 bg-black/55 z-40 flex items-end md:items-center justify-center font-sans"
             onClick={handleBackdropClick}
         >
             {showParticipantSelector && (
@@ -528,58 +557,67 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                     itemDescription={itemizedExpense.itemizedItems[itemizedExpense.editingItemIndex]?.description || ''}
                 />
             )}
-            <div className="bg-white dark:bg-gray-800 w-full md:w-[448px] max-h-[90vh] rounded-t-2xl md:rounded-2xl shadow-xl dark:shadow-gray-900/50 overflow-y-auto flex flex-col">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={isEditing ? 'Edit expense' : 'Expense details'}
+                className="bg-sw-surface text-sw-text w-full md:w-[448px] max-h-[90vh] rounded-t-sw-sheet md:rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)] overflow-y-auto flex flex-col"
+            >
                 {isLoading ? (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading...</div>
+                    <div className="text-center py-8 text-[12.5px] text-sw-dim">Loading…</div>
                 ) : error ? (
-                    <div className="text-center py-8">
-                        <div className="text-red-500 dark:text-red-400 mb-4">{error}</div>
-                        <button onClick={handleClose} className="text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300">Close</button>
+                    <div className="text-center py-8 px-5">
+                        <Notice tone="error" className="mb-4 text-left">{error}</Notice>
+                        <Button variant="ghost" onClick={handleClose}>Close</Button>
                     </div>
                 ) : expense ? (
                     <>
                         {/* Header */}
-                        <div className="sticky top-0 bg-white dark:bg-gray-800 z-10 p-4 sm:p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                            <h2 className="text-xl font-bold dark:text-gray-100">
-                                {isEditing ? 'Edit Expense' : 'Expense Details'}
+                        <div className="sticky top-0 bg-sw-surface z-10 p-4 sm:p-5 border-b border-sw-line flex justify-between items-center gap-2">
+                            <h2 className="sw-heading text-[17px]">
+                                {isEditing ? 'Edit expense' : 'Expense details'}
                             </h2>
                             {canEdit && !isEditing && !showDeleteConfirm && (
-                                <div className="flex space-x-2">
-                                    <button
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="secondary"
                                         onClick={() => setIsEditing(true)}
-                                        className="text-sm bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 px-3 py-2 rounded hover:bg-teal-200 dark:hover:bg-teal-900/50 min-h-[44px]"
+                                        className="min-h-[38px]"
                                     >
                                         Edit
-                                    </button>
-                                    <button
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
                                         onClick={() => setShowDeleteConfirm(true)}
-                                        className="text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-3 py-2 rounded hover:bg-red-200 dark:hover:bg-red-900/50 min-h-[44px]"
+                                        className="min-h-[38px] text-sw-neg border-sw-neg"
                                     >
                                         Delete
-                                    </button>
+                                    </Button>
                                 </div>
                             )}
                         </div>
 
                         {/* Delete Confirmation */}
                         {showDeleteConfirm && (
-                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-4 m-4 sm:m-5">
-                                <p className="text-sm text-red-800 dark:text-red-300 mb-3">
+                            <div className="bg-sw-neg-soft rounded-sw-card p-4 m-4 sm:m-5">
+                                <p className="text-[12.5px] text-sw-neg mb-3">
                                     Are you sure you want to delete this expense? This cannot be undone.
                                 </p>
-                                <div className="flex space-x-2">
-                                    <button
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="secondary"
                                         onClick={handleDelete}
-                                        className="px-4 py-2 bg-red-500 text-white text-sm rounded hover:bg-red-600 min-h-[44px]"
+                                        className="min-h-[44px] text-sw-neg border-sw-neg"
                                     >
                                         Delete
-                                    </button>
-                                    <button
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
                                         onClick={() => setShowDeleteConfirm(false)}
-                                        className="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 min-h-[44px]"
+                                        className="min-h-[44px]"
                                     >
                                         Cancel
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                         )}
@@ -589,15 +627,16 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                             <div className="flex-1 flex flex-col">
                                 <div className="flex-1 overflow-y-auto p-4 sm:p-5">
                                     <div className="mb-4">
-                                        <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Description:</label>
+                                        <label className={LABEL_CLASS} htmlFor="expense-description">Description</label>
                                         <div className="flex items-center gap-2">
                                             <IconSelector
                                                 selectedIcon={selectedIcon}
                                                 onIconSelect={setSelectedIcon}
                                             />
                                             <input
+                                                id="expense-description"
                                                 type="text"
-                                                className="flex-1 border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 dark:bg-gray-800 dark:text-gray-100"
+                                                className={CONTROL_CLASS}
                                                 value={description}
                                                 onChange={e => setDescription(e.target.value)}
                                                 required
@@ -605,31 +644,42 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                         </div>
                                     </div>
 
-                                    <div className="mb-4 flex items-center space-x-2">
-                                        <select
-                                            value={currency}
-                                            onChange={(e) => setCurrency(e.target.value)}
-                                            className="border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 bg-transparent dark:bg-gray-700 dark:text-gray-200"
-                                        >
-                                            {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
-                                        </select>
-                                        <input
-                                            type="text"
-                                            inputMode="decimal"
-                                            placeholder="0.00"
-                                            className={`w-full border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 text-lg dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400 ${splitType === 'ITEMIZED' ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' : ''}`}
-                                            value={splitType === 'ITEMIZED' ? calculateItemizedTotal(itemizedExpense.itemizedItems, itemizedExpense.taxAmount, itemizedExpense.tipAmount) : amount}
-                                            onChange={e => setAmount(e.target.value)}
-                                            disabled={splitType === 'ITEMIZED'}
-                                            required={splitType !== 'ITEMIZED'}
-                                        />
+                                    <div className="mb-4">
+                                        <label className={LABEL_CLASS} htmlFor="expense-amount">Amount</label>
+                                        <div className="flex items-center gap-2">
+                                            <select
+                                                aria-label="Currency"
+                                                value={currency}
+                                                onChange={(e) => setCurrency(e.target.value)}
+                                                className={`${CONTROL_CLASS} w-auto flex-none`}
+                                            >
+                                                {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                                            </select>
+                                            <input
+                                                id="expense-amount"
+                                                type="text"
+                                                inputMode="decimal"
+                                                placeholder="0.00"
+                                                className={`${CONTROL_CLASS} sw-num text-lg`}
+                                                value={splitType === 'ITEMIZED' ? calculateItemizedTotal(itemizedExpense.itemizedItems, itemizedExpense.taxAmount, itemizedExpense.tipAmount) : amount}
+                                                onChange={e => setAmount(e.target.value)}
+                                                disabled={splitType === 'ITEMIZED'}
+                                                required={splitType !== 'ITEMIZED'}
+                                            />
+                                        </div>
+                                        {splitType === 'ITEMIZED' && (
+                                            <p className="text-[11.5px] text-sw-dim mt-1.5">
+                                                Totalled from the items below
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div className="mb-4">
-                                        <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Date:</label>
+                                        <label className={LABEL_CLASS} htmlFor="expense-date">Date</label>
                                         <input
+                                            id="expense-date"
                                             type="date"
-                                            className="w-full border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 dark:bg-gray-800 dark:text-gray-100"
+                                            className={CONTROL_CLASS}
                                             value={expenseDate}
                                             onChange={(e) => setExpenseDate(e.target.value)}
                                             required
@@ -637,9 +687,10 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                     </div>
 
                                     <div className="mb-4">
-                                        <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Notes:</label>
+                                        <label className={LABEL_CLASS} htmlFor="expense-notes">Notes</label>
                                         <textarea
-                                            className="w-full border rounded-lg p-2 text-sm focus:outline-none focus:border-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400"
+                                            id="expense-notes"
+                                            className={`${CONTROL_CLASS} text-sm`}
                                             placeholder="Add notes (optional)"
                                             rows={2}
                                             value={notes}
@@ -653,27 +704,31 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                                 type="checkbox"
                                                 checked={isSettlement}
                                                 onChange={(e) => setIsSettlement(e.target.checked)}
-                                                className="w-4 h-4 text-teal-600 bg-gray-100 border-gray-300 rounded focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600"
+                                                className="w-4 h-4 rounded accent-[var(--sw-accent)] focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                                             />
-                                            <span className="text-sm text-gray-700 dark:text-gray-300">This is a settlement (payment)</span>
+                                            <span className="text-sm text-sw-text">This is a settlement (payment)</span>
                                         </label>
                                     </div>
 
                                     <div className="mb-4">
-                                        <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Participants:</label>
+                                        <span className={LABEL_CLASS}>Participants</span>
                                         {getAvailableParticipants().length > 6 ? (
                                             <button
                                                 type="button"
                                                 onClick={() => setShowParticipantSelector(true)}
-                                                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 text-left flex items-center justify-between min-h-[44px]"
+                                                className="w-full px-3 py-2.5 rounded-sw-row bg-sw-sunk text-sw-text shadow-[0_0_0_1px_var(--sw-line)] hover:bg-sw-raise text-left flex items-center justify-between gap-2 min-h-[44px] cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                                             >
                                                 <span className="text-sm">{getSelectedParticipantsDisplay()}</span>
-                                                <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path d="M9 5l7 7-7 7"></path>
-                                                </svg>
+                                                <CaretRight size={16} className="text-sw-dim flex-none" />
                                             </button>
                                         ) : (
                                             <div className="flex flex-wrap gap-2">
+                                                {/*
+                                                 * Members, group guests and expense-only guests used to
+                                                 * be teal, orange and purple. The redesign has one
+                                                 * accent, so selection is the only thing the colour
+                                                 * says here; who someone is is already in their name.
+                                                 */}
                                                 {groupMembers.map(member => {
                                                     const key = `user_${member.user_id}`;
                                                     return (
@@ -681,7 +736,8 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                                             key={key}
                                                             type="button"
                                                             onClick={() => toggleParticipant(key)}
-                                                            className={`px-4 py-2 rounded-full text-sm border min-h-[44px] ${selectedParticipantKeys.includes(key) ? 'bg-teal-100 dark:bg-teal-900/30 border-teal-500 dark:border-teal-600 text-teal-700 dark:text-teal-300' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 dark:text-gray-200'}`}
+                                                            aria-pressed={selectedParticipantKeys.includes(key)}
+                                                            className={participantPillClass(selectedParticipantKeys.includes(key))}
                                                         >
                                                             {member.user_id === currentUserId ? 'You' : member.full_name}
                                                         </button>
@@ -694,7 +750,8 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                                             key={key}
                                                             type="button"
                                                             onClick={() => toggleParticipant(key)}
-                                                            className={`px-4 py-2 rounded-full text-sm border min-h-[44px] ${selectedParticipantKeys.includes(key) ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-500 dark:border-orange-600 text-orange-700 dark:text-orange-300' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 dark:text-gray-200'}`}
+                                                            aria-pressed={selectedParticipantKeys.includes(key)}
+                                                            className={participantPillClass(selectedParticipantKeys.includes(key))}
                                                         >
                                                             {guest.name}
                                                         </button>
@@ -707,7 +764,8 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                                             key={key}
                                                             type="button"
                                                             onClick={() => toggleParticipant(key)}
-                                                            className={`px-4 py-2 rounded-full text-sm border min-h-[44px] ${selectedParticipantKeys.includes(key) ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500 dark:border-purple-600 text-purple-700 dark:text-purple-300' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 dark:text-gray-200'}`}
+                                                            aria-pressed={selectedParticipantKeys.includes(key)}
+                                                            className={participantPillClass(selectedParticipantKeys.includes(key))}
                                                         >
                                                             {expenseGuest.name}
                                                         </button>
@@ -719,15 +777,16 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
 
                                     {getPotentialPayers().length > 1 && (
                                         <div className="mb-4">
-                                            <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Paid by:</label>
+                                            <label className={LABEL_CLASS} htmlFor="expense-payer">Paid by</label>
                                             <select
+                                                id="expense-payer"
                                                 value={payerIsGuest ? `guest_${payerId}` : `user_${payerId}`}
                                                 onChange={(e) => {
                                                     const [type, id] = e.target.value.split('_');
                                                     setPayerId(parseInt(id));
                                                     setPayerIsGuest(type === 'guest');
                                                 }}
-                                                className="w-full border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 bg-white dark:bg-gray-700 dark:text-gray-100"
+                                                className={CONTROL_CLASS}
                                             >
                                                 {getPotentialPayers().map(p => (
                                                     <option key={p.isGuest ? `guest_${p.id}` : `user_${p.id}`} value={p.isGuest ? `guest_${p.id}` : `user_${p.id}`}>
@@ -739,20 +798,21 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                     )}
 
                                     <div className="mb-4">
-                                        <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Split by:</label>
+                                        <span className={LABEL_CLASS}>Split by</span>
                                         <ExpenseSplitTypeSelector value={splitType} onChange={setSplitType} />
 
                                         {splitType === 'ITEMIZED' && (
-                                            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
-                                                <div className="flex justify-between items-center mb-3">
-                                                    <p className="font-semibold text-sm dark:text-gray-100">Assign Items</p>
-                                                    <button
-                                                        type="button"
+                                            <Card tone="sunk" className="p-3 mt-3">
+                                                <div className="flex justify-between items-center gap-2 mb-3">
+                                                    <p className="text-[11px] uppercase tracking-[0.09em] text-sw-dim">Assign items</p>
+                                                    <Button
+                                                        variant="ghost"
                                                         onClick={itemizedExpense.openAddItemModal}
-                                                        className="text-sm text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 px-3 py-2 min-h-[44px]"
+                                                        icon={<Plus size={14} />}
+                                                        className="min-h-[38px]"
                                                     >
-                                                        + Add Item
-                                                    </button>
+                                                        Add item
+                                                    </Button>
                                                 </div>
 
                                                 <ExpenseItemList
@@ -765,18 +825,19 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                                     currentUserId={currentUserId}
                                                 />
 
-                                                <div className="mt-3 pt-3 border-t dark:border-gray-600 space-y-3">
+                                                <div className="mt-3 pt-3 border-t border-sw-line space-y-3">
                                                     {/* Tax Input */}
                                                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                                        <span className="text-sm text-gray-600 dark:text-gray-400">Tax (split proportionally)</span>
-                                                        <div className="flex items-center">
-                                                            <span className="text-sm mr-2 dark:text-gray-300">{currency}</span>
+                                                        <label className="text-sm text-sw-muted" htmlFor="expense-tax">Tax (split proportionally)</label>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-sm text-sw-dim">{currency}</span>
                                                             <input
+                                                                id="expense-tax"
                                                                 type="text"
                                                                 inputMode="decimal"
                                                                 placeholder="0.00"
                                                                 step="0.01"
-                                                                className="w-28 sm:w-24 border dark:border-gray-600 rounded p-2 text-sm text-right min-h-[44px] dark:bg-gray-800 dark:text-gray-100"
+                                                                className={MONEY_INPUT_CLASS}
                                                                 value={itemizedExpense.taxAmount}
                                                                 onChange={(e) => itemizedExpense.setTaxAmount(e.target.value)}
                                                             />
@@ -786,15 +847,16 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                                     {/* Tip Input with percentage buttons */}
                                                     <div className="flex flex-col gap-2">
                                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                                            <span className="text-sm text-gray-600 dark:text-gray-400">Tip (split proportionally)</span>
-                                                            <div className="flex items-center">
-                                                                <span className="text-sm mr-2 dark:text-gray-300">{currency}</span>
+                                                            <label className="text-sm text-sw-muted" htmlFor="expense-tip">Tip (split proportionally)</label>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm text-sw-dim">{currency}</span>
                                                                 <input
+                                                                    id="expense-tip"
                                                                     type="text"
                                                                     inputMode="decimal"
                                                                     placeholder="0.00"
                                                                     step="0.01"
-                                                                    className="w-28 sm:w-24 border dark:border-gray-600 rounded p-2 text-sm text-right min-h-[44px] dark:bg-gray-800 dark:text-gray-100"
+                                                                    className={MONEY_INPUT_CLASS}
                                                                     value={itemizedExpense.tipAmount}
                                                                     onChange={(e) => itemizedExpense.setTipAmount(e.target.value)}
                                                                 />
@@ -806,7 +868,7 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                                                     key={percent}
                                                                     type="button"
                                                                     onClick={() => itemizedExpense.setTipFromPercentage(percent)}
-                                                                    className="px-3 py-1 text-xs bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded hover:bg-teal-200 dark:hover:bg-teal-900/50 transition-colors"
+                                                                    className="px-3 py-1.5 text-xs rounded-full bg-sw-surface text-sw-muted shadow-[0_0_0_1px_var(--sw-line)] hover:text-sw-text cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                                                                 >
                                                                     {percent}%
                                                                 </button>
@@ -815,10 +877,13 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                                     </div>
                                                 </div>
 
-                                                <div className="mt-3 text-right text-base font-semibold dark:text-white">
-                                                    Total: {currency} {calculateItemizedTotal(itemizedExpense.itemizedItems, itemizedExpense.taxAmount, itemizedExpense.tipAmount)}
+                                                <div className="mt-3 flex justify-between items-baseline pt-3 border-t border-sw-line">
+                                                    <span className="text-[12.5px] text-sw-muted">Total</span>
+                                                    <span className="sw-display text-base">
+                                                        {currency} {calculateItemizedTotal(itemizedExpense.itemizedItems, itemizedExpense.taxAmount, itemizedExpense.tipAmount)}
+                                                    </span>
                                                 </div>
-                                            </div>
+                                            </Card>
                                         )}
 
                                         {splitType !== 'EQUAL' && splitType !== 'ITEMIZED' && (
@@ -834,33 +899,30 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                     </div>
                                 </div>
 
-                                <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 sm:p-5 flex justify-end space-x-3">
-                                    <button
-                                        type="button"
+                                <div className="sticky bottom-0 bg-sw-surface border-t border-sw-line p-4 sm:p-5 flex justify-end gap-2">
+                                    <Button
+                                        variant="ghost"
                                         onClick={() => {
                                             setIsEditing(false);
                                             if (expense) populateFormFromExpense(expense);
                                         }}
-                                        className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded min-h-[44px]"
+                                        className="min-h-[44px]"
                                     >
                                         Cancel
-                                    </button>
-                                    <button
-                                        type="button"
+                                    </Button>
+                                    <Button
+                                        variant="primary"
                                         onClick={handleSave}
                                         disabled={isSubmitting}
-                                        className="px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                                        className="min-h-[44px]"
+                                        icon={
+                                            isSubmitting ? (
+                                                <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-sw-line border-t-sw-accent" />
+                                            ) : undefined
+                                        }
                                     >
-                                        {isSubmitting ? (
-                                            <>
-                                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                </svg>
-                                                Saving...
-                                            </>
-                                        ) : 'Save'}
-                                    </button>
+                                        {isSubmitting ? 'Saving…' : 'Save'}
+                                    </Button>
                                 </div>
                             </div>
                         ) : (
@@ -868,105 +930,94 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                             <div className="flex-1 flex flex-col">
                                 <div className="flex-1 overflow-y-auto p-4 sm:p-5">
                                     <div className="mb-6">
-                                        <div className="flex items-center gap-3 mb-1">
+                                        <div className="flex items-center gap-3 mb-1.5">
                                             {expense.icon && (
                                                 <span className="text-3xl">{expense.icon}</span>
                                             )}
-                                            <h3 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{expense.description}</h3>
+                                            <h3 className="sw-heading text-[22px]">{expense.description}</h3>
                                         </div>
-                                        <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                                            {formatMoney(expense.amount, expense.currency)}
-                                        </p>
+                                        <Money
+                                            amount={expense.amount}
+                                            currency={expense.currency}
+                                            className="sw-display text-[32px] block"
+                                        />
                                     </div>
 
                                     <div className="space-y-3 mb-6">
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-gray-500 dark:text-gray-400">Date</span>
-                                            <span className="text-gray-900 dark:text-gray-100">{formatDate(expense.date)}</span>
+                                        <div className="flex justify-between gap-3 text-[12.5px]">
+                                            <span className="text-sw-muted">Date</span>
+                                            <span className="text-sw-text">{formatDate(expense.date)}</span>
                                         </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-gray-500 dark:text-gray-400">Paid by</span>
-                                            <span className="text-gray-900 dark:text-gray-100">{getPayerName()}</span>
+                                        <div className="flex justify-between gap-3 text-[12.5px]">
+                                            <span className="text-sw-muted">Paid by</span>
+                                            <span className="text-sw-text">{getPayerName()}</span>
                                         </div>
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-gray-500 dark:text-gray-400">Split type</span>
-                                            <span className="text-gray-900 dark:text-gray-100">{expense.split_type}</span>
+                                        <div className="flex justify-between items-center gap-3 text-[12.5px]">
+                                            <span className="text-sw-muted">Split type</span>
+                                            <TagPill tone="neutral">{expense.split_type}</TagPill>
                                         </div>
                                         {groupDefaultCurrency && expense.currency !== groupDefaultCurrency && expense.exchange_rate && (
-                                            <div className="flex justify-between text-sm">
+                                            <div className="flex justify-between gap-3 text-[12.5px]">
                                                 <div className="flex items-center gap-1">
-                                                    <span className="text-gray-500 dark:text-gray-400">Exchange Rate</span>
+                                                    <span className="text-sw-muted">Exchange rate</span>
                                                     <button
+                                                        type="button"
                                                         onClick={() => setShowExchangeRateInfo(true)}
-                                                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                                                        aria-label="About this exchange rate"
+                                                        className="text-sw-dim hover:text-sw-text cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                                                     >
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                        </svg>
+                                                        <Info size={15} />
                                                     </button>
-
-                                                    {/* Exchange Rate Info Modal */}
-                                                    {showExchangeRateInfo && (
-                                                        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowExchangeRateInfo(false)}>
-                                                            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
-                                                                <div className="flex items-center gap-3 mb-4">
-                                                                    <div className="w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
-                                                                        <svg className="w-5 h-5 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                                        </svg>
-                                                                    </div>
-                                                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Exchange Rate</h3>
-                                                                </div>
-                                                                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-6">
-                                                                    This exchange rate was captured at the time of the expense and is used to normalize amounts when calculating balances and simplifying debts between different currencies.
-                                                                </p>
-                                                                <button
-                                                                    onClick={() => setShowExchangeRateInfo(false)}
-                                                                    className="w-full py-3 bg-teal-500 hover:bg-teal-600 text-white font-medium rounded-xl transition-colors"
-                                                                >
-                                                                    Got it
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )}
                                                 </div>
-                                                <span className="text-gray-900 dark:text-gray-100">1 {expense.currency} = {expense.exchange_rate} {expense.exchange_rate_target_currency || 'USD'}</span>
+                                                <span className="sw-num text-sw-text">1 {expense.currency} = {expense.exchange_rate} {expense.exchange_rate_target_currency || 'USD'}</span>
                                             </div>
                                         )}
                                     </div>
 
                                     {expense.notes && (
-                                        <div className="mb-6 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
-                                            <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Notes</h4>
-                                            <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{expense.notes}</p>
-                                        </div>
+                                        <Card tone="sunk" className="mb-6 p-3">
+                                            <h4 className="text-[11px] uppercase tracking-[0.09em] text-sw-dim mb-1">Notes</h4>
+                                            <p className="text-sm text-sw-text whitespace-pre-wrap">{expense.notes}</p>
+                                        </Card>
                                     )}
 
                                     {/* Itemized breakdown for ITEMIZED expenses */}
                                     {expense.split_type === 'ITEMIZED' && expense.items && expense.items.length > 0 && (
-                                        <div className="border-t dark:border-gray-700 pt-4 mb-4">
-                                            <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Items</h4>
+                                        <div className="border-t border-sw-line pt-4 mb-4">
+                                            <h4 className={SECTION_CLASS}>Items</h4>
                                             <div className="space-y-2">
                                                 {expense.items.filter(i => !i.is_tax_tip).map(item => (
-                                                    <div key={item.id} className="flex justify-between items-start text-sm">
+                                                    <div key={item.id} className="flex justify-between items-start gap-3 text-sm">
                                                         <div>
-                                                            <span className="text-gray-700 dark:text-gray-300">{item.description}</span>
-                                                            <div className={`text-xs ${item.assignments.length === 0 ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
-                                                                {item.assignments.length === 0
-                                                                    ? '⚠️ Unclaimed'
-                                                                    : item.assignments.map(a => a.user_name).join(', ')
-                                                                }
+                                                            <span className="text-sw-text">{item.description}</span>
+                                                            <div className={`text-[11.5px] flex items-center gap-1 ${item.assignments.length === 0 ? 'text-sw-neg' : 'text-sw-dim'}`}>
+                                                                {item.assignments.length === 0 ? (
+                                                                    <>
+                                                                        <Warning size={12} weight="fill" />
+                                                                        Unclaimed
+                                                                    </>
+                                                                ) : (
+                                                                    item.assignments.map(a => a.user_name).join(', ')
+                                                                )}
                                                             </div>
                                                         </div>
-                                                        <span className="text-gray-600 dark:text-gray-400">
-                                                            {formatMoney(item.price, expense.currency)}
-                                                        </span>
+                                                        <Money
+                                                            amount={item.price}
+                                                            currency={expense.currency}
+                                                            tone="muted"
+                                                            className="flex-none"
+                                                        />
                                                     </div>
                                                 ))}
                                                 {expense.items.filter(i => i.is_tax_tip).map(item => (
-                                                    <div key={item.id} className="flex justify-between text-sm text-gray-500 dark:text-gray-400 italic">
+                                                    <div key={item.id} className="flex justify-between gap-3 text-sm text-sw-dim">
                                                         <span>{item.description}</span>
-                                                        <span>{formatMoney(item.price, expense.currency)}</span>
+                                                        <Money
+                                                            amount={item.price}
+                                                            currency={expense.currency}
+                                                            tone="dim"
+                                                            className="flex-none"
+                                                        />
                                                     </div>
                                                 ))}
                                             </div>
@@ -976,24 +1027,22 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
 
                                     {/* Receipt Image */}
                                     {expense.receipt_image_path && (
-                                        <div className="border-t dark:border-gray-700 pt-4 mb-4">
-                                            <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Receipt</h4>
-                                            <a
+                                        <div className="border-t border-sw-line pt-4 mb-4">
+                                            <h4 className={SECTION_CLASS}>Receipt</h4>
+                                            <Button
+                                                variant="secondary"
                                                 href={getApiUrl(expense.receipt_image_path.replace(/^\//, ''))}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="inline-flex items-center text-sm text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300"
+                                                icon={<ArrowSquareOut size={15} />}
                                             >
-                                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                                </svg>
-                                                View Receipt
-                                            </a>
+                                                View receipt
+                                            </Button>
                                         </div>
                                     )}
 
-                                    <div className="border-t dark:border-gray-700 pt-4">
-                                        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Split Breakdown</h4>
+                                    <div className="border-t border-sw-line pt-4">
+                                        <h4 className={SECTION_CLASS}>Split breakdown</h4>
                                         <div className="space-y-4">
                                             {[...expense.splits].sort((a, b) => {
                                                 const aName = a.user_id === currentUserId && !a.is_guest ? 'You' : a.user_name;
@@ -1012,63 +1061,67 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                                     );
 
                                                     return (
-                                                        <div key={split.id} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                                            <div className="flex justify-between items-center mb-2">
-                                                                <span className="font-medium text-gray-900 dark:text-gray-100">
+                                                        <Card key={split.id} tone="sunk" className="p-3">
+                                                            <div className="flex justify-between items-center gap-3 mb-2">
+                                                                <span className="text-sm font-medium">
                                                                     {displayName}
                                                                 </span>
-                                                                <span className="text-gray-900 dark:text-gray-100 font-bold">
-                                                                    {formatMoney(split.amount_owed, expense.currency)}
-                                                                </span>
+                                                                <Money
+                                                                    amount={split.amount_owed}
+                                                                    currency={expense.currency}
+                                                                    className="font-medium"
+                                                                />
                                                             </div>
                                                             {breakdown.items.length > 0 && (
-                                                                <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1 pl-2 border-l-2 border-gray-200 dark:border-gray-600 mb-2">
+                                                                <div className="text-[11.5px] text-sw-dim space-y-1 pl-2 border-l-2 border-sw-line mb-2">
                                                                     {breakdown.items.map((item, idx) => (
-                                                                        <div key={idx} className="flex justify-between">
+                                                                        <div key={idx} className="flex justify-between gap-2">
                                                                             <span>
                                                                                 {item.description}
                                                                                 {item.isShared && (
-                                                                                    <span className="ml-1 text-gray-400 dark:text-gray-500">
+                                                                                    <span className="ml-1">
                                                                                         ({formatItemPercent(item.percent)}%, with {item.sharedWith} {item.sharedWith === 1 ? 'other' : 'others'})
                                                                                     </span>
                                                                                 )}
                                                                             </span>
-                                                                            <span>{formatMoney(item.shareAmount, expense.currency)}</span>
+                                                                            <span className="sw-num flex-none">{formatMoney(item.shareAmount, expense.currency)}</span>
                                                                         </div>
                                                                     ))}
                                                                 </div>
                                                             )}
-                                                            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1 pl-2 border-l-2 border-gray-200 dark:border-gray-600">
-                                                                <div className="flex justify-between">
+                                                            <div className="text-[11.5px] text-sw-dim space-y-1 pl-2 border-l-2 border-sw-line">
+                                                                <div className="flex justify-between gap-2">
                                                                     <span>Items subtotal</span>
-                                                                    <span>{formatMoney(breakdown.subtotal, expense.currency)}</span>
+                                                                    <span className="sw-num flex-none">{formatMoney(breakdown.subtotal, expense.currency)}</span>
                                                                 </div>
                                                                 {breakdown.tax > 0 && (
-                                                                    <div className="flex justify-between">
+                                                                    <div className="flex justify-between gap-2">
                                                                         <span>+ Tax ({breakdown.sharePercent.toFixed(1)}% share)</span>
-                                                                        <span>{formatMoney(breakdown.tax, expense.currency)}</span>
+                                                                        <span className="sw-num flex-none">{formatMoney(breakdown.tax, expense.currency)}</span>
                                                                     </div>
                                                                 )}
                                                                 {breakdown.tip > 0 && (
-                                                                    <div className="flex justify-between">
+                                                                    <div className="flex justify-between gap-2">
                                                                         <span>+ Tip ({breakdown.sharePercent.toFixed(1)}% share)</span>
-                                                                        <span>{formatMoney(breakdown.tip, expense.currency)}</span>
+                                                                        <span className="sw-num flex-none">{formatMoney(breakdown.tip, expense.currency)}</span>
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                        </div>
+                                                        </Card>
                                                     );
                                                 }
 
                                                 // For non-itemized expenses, show simple display
                                                 return (
-                                                    <div key={split.id} className="flex justify-between items-center text-sm">
-                                                        <span className="text-gray-700 dark:text-gray-300">
+                                                    <div key={split.id} className="flex justify-between items-center gap-3 text-sm">
+                                                        <span className="text-sw-muted">
                                                             {displayName}
                                                         </span>
-                                                        <span className="text-gray-900 dark:text-gray-100 font-medium">
-                                                            {formatMoney(split.amount_owed, expense.currency)}
-                                                        </span>
+                                                        <Money
+                                                            amount={split.amount_owed}
+                                                            currency={expense.currency}
+                                                            className="font-medium"
+                                                        />
                                                     </div>
                                                 );
                                             })}
@@ -1077,61 +1130,53 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
 
                                     {/* Quick Settle Section - Only for non-group expenses with expense guests */}
                                     {expense.expense_guests && expense.expense_guests.length > 0 && (
-                                        <div className="border-t dark:border-gray-700 pt-4 mt-4">
-                                            <div className="flex justify-between items-center mb-3">
-                                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">Quick Settle</h4>
-                                                <span className={`text-xs px-2 py-1 rounded-full ${
-                                                    expense.expense_guests.filter(g => g.paid).length === expense.expense_guests.length
-                                                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                                                }`}>
+                                        <div className="border-t border-sw-line pt-4 mt-4">
+                                            <div className="flex justify-between items-center gap-2 mb-3">
+                                                <h4 className="text-[11px] uppercase tracking-[0.09em] text-sw-dim">Quick settle</h4>
+                                                <TagPill
+                                                    tone={
+                                                        expense.expense_guests.filter(g => g.paid).length === expense.expense_guests.length
+                                                            ? 'positive'
+                                                            : 'neutral'
+                                                    }
+                                                >
                                                     {expense.expense_guests.filter(g => g.paid).length}/{expense.expense_guests.length} paid
-                                                </span>
+                                                </TagPill>
                                             </div>
                                             <div className="space-y-2">
                                                 {expense.expense_guests.map(guest => (
                                                     <div
                                                         key={guest.id}
-                                                        className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                                                        className={`flex items-center justify-between gap-3 p-3 rounded-sw-row transition-colors ${
                                                             guest.paid
-                                                                ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-                                                                : 'bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600'
+                                                                ? 'bg-sw-pos-soft'
+                                                                : 'bg-sw-sunk shadow-[0_0_0_1px_var(--sw-line)]'
                                                         }`}
                                                     >
-                                                        <label className="flex items-center gap-3 cursor-pointer flex-1">
+                                                        <label className="flex items-center gap-3 cursor-pointer flex-1 min-w-0">
                                                             <input
                                                                 type="checkbox"
                                                                 checked={guest.paid}
                                                                 disabled={settlingGuestId === guest.id || readOnly}
                                                                 onChange={() => toggleExpenseGuestPaid(guest.id, !guest.paid)}
-                                                                className="w-5 h-5 text-green-600 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded focus:ring-green-500 disabled:opacity-50"
+                                                                className="w-5 h-5 rounded accent-[var(--sw-pos)] disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                                                             />
-                                                            <span className={`font-medium ${
-                                                                guest.paid
-                                                                    ? 'text-green-700 dark:text-green-300'
-                                                                    : 'text-gray-900 dark:text-gray-100'
-                                                            }`}>
+                                                            <span className={`text-sm font-medium truncate ${guest.paid ? 'text-sw-pos' : 'text-sw-text'}`}>
                                                                 {guest.name}
                                                             </span>
                                                         </label>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className={`font-medium ${
-                                                                guest.paid
-                                                                    ? 'text-green-600 dark:text-green-400'
-                                                                    : 'text-gray-900 dark:text-gray-100'
-                                                            }`}>
-                                                                {formatMoney(guest.amount_owed, expense.currency)}
-                                                            </span>
+                                                        <div className="flex items-center gap-2 flex-none">
+                                                            <Money
+                                                                amount={guest.amount_owed}
+                                                                currency={expense.currency}
+                                                                tone={guest.paid ? 'positive' : 'default'}
+                                                                className="font-medium"
+                                                            />
                                                             {guest.paid && (
-                                                                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                                </svg>
+                                                                <Check size={16} className="text-sw-pos" aria-hidden="true" />
                                                             )}
                                                             {settlingGuestId === guest.id && (
-                                                                <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                                </svg>
+                                                                <span className="animate-spin rounded-full h-4 w-4 border-2 border-sw-line border-t-sw-accent" />
                                                             )}
                                                         </div>
                                                     </div>
@@ -1141,14 +1186,10 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                     )}
                                 </div>
 
-                                <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 sm:p-5 flex justify-end">
-                                    <button
-                                        type="button"
-                                        onClick={handleClose}
-                                        className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded min-h-[44px]"
-                                    >
+                                <div className="sticky bottom-0 bg-sw-surface border-t border-sw-line p-4 sm:p-5 flex justify-end">
+                                    <Button variant="ghost" onClick={handleClose} className="min-h-[44px]">
                                         Close
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                         )}
@@ -1172,6 +1213,45 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                     type={alertDialog.type}
                 />
             </div>
+
+            {/*
+             * Sibling of the panel rather than nested in the exchange-rate row
+             * it explains. It is a fixed-position overlay covering the whole
+             * viewport, so living inside a flex row several levels down was
+             * only ever working by accident.
+             */}
+            {showExchangeRateInfo && (
+                <div
+                    className="fixed inset-0 bg-black/55 z-50 flex items-center justify-center p-4"
+                    onClick={() => setShowExchangeRateInfo(false)}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Exchange rate"
+                        className="bg-sw-surface text-sw-text rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)] max-w-sm w-full p-6"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-sw-accent-ghost text-sw-accent flex items-center justify-center flex-none">
+                                <Info size={20} weight="fill" aria-hidden="true" />
+                            </div>
+                            <h3 className="sw-heading text-[17px]">Exchange rate</h3>
+                        </div>
+                        <p className="text-[12.5px] text-sw-muted leading-relaxed mb-6">
+                            This exchange rate was captured at the time of the expense and is used to normalize amounts when calculating balances and simplifying debts between different currencies.
+                        </p>
+                        <Button
+                            variant="primary"
+                            block
+                            onClick={() => setShowExchangeRateInfo(false)}
+                            className="py-3"
+                        >
+                            Got it
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
