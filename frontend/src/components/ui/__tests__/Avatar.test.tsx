@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import Avatar, { initialsOf } from '../Avatar';
+import Avatar from '../Avatar';
+import { initialsOf } from '../../../utils/initials';
 
 describe('initialsOf', () => {
     it('takes the first and last word initials', () => {

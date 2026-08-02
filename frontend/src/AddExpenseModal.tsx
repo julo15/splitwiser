@@ -42,6 +42,12 @@ interface AddExpenseModalProps {
     groups?: Group[];
     preselectedGroupId?: number | null;
     preselectedFriendId?: number | null;
+    /**
+     * Open straight into the receipt scanner instead of the manual form. Used
+     * by the FAB sheet's "Split a bill at the table", where scanning is the
+     * whole point of the entry.
+     */
+    openScanner?: boolean;
 }
 
 const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
@@ -51,7 +57,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     friends,
     groups = [],
     preselectedGroupId = null,
-    preselectedFriendId = null
+    preselectedFriendId = null,
+    openScanner = false
 }) => {
     const { user } = useAuth();
     const { isOnline: _isOnline } = useSync();
@@ -180,8 +187,11 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     useEffect(() => {
         if (isOpen) {
             resetForm();
+            // Honor the caller's entry point: "Split a bill at the table" lands
+            // on the scanner, everything else on the manual form.
+            setShowScanner(openScanner);
         }
-    }, [isOpen, preselectedGroupId, preselectedFriendId, user?.id]);
+    }, [isOpen, openScanner, preselectedGroupId, preselectedFriendId, user?.id]);
 
     const handleScannedItems = (items: { description: string, price: number }[], receiptPath?: string, validationWarning?: string | null, taxCents?: number | null, tipCents?: number | null, totalCents?: number | null) => {
         setScannedItems(items);

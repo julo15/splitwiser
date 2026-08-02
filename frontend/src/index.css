@@ -1,3 +1,8 @@
+/*
+ * Inter is the redesign's only typeface. Self-hosted rather than pulled from a
+ * CDN so the PWA still renders correctly offline.
+ */
+@import "@fontsource-variable/inter";
 @import "tailwindcss";
 
 /* Configure dark mode variant for Tailwind v4 */

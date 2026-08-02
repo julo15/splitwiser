@@ -3,7 +3,7 @@
  * assembled from these so the Nocturne rules (outlined actions, hairline
  * elevation, tinted marks rather than accent floods) are enforced in one place.
  */
-export { default as Avatar, initialsOf } from './Avatar';
+export { default as Avatar } from './Avatar';
 export { default as Button } from './Button';
 export { default as Card } from './Card';
 export { default as IconTile } from './IconTile';
