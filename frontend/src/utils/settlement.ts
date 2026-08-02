@@ -93,6 +93,57 @@ export function settlementForUser(
     return [...byKey.values()].filter((c) => Math.round(c.amount) !== 0);
 }
 
+export interface SuggestedPayment {
+    key: string;
+    /** The other party. */
+    userId: number;
+    isGuest: boolean;
+    /** True when the current user is the one paying. */
+    iPay: boolean;
+    /** Always positive — the direction is carried by `iPay`. */
+    amount: number;
+    currency: string;
+    groupId: number;
+    groupName: string;
+}
+
+/**
+ * The individual payments the current user is party to, kept per group rather
+ * than merged.
+ *
+ * `settlementForUser` folds a person's debts across groups into one figure,
+ * which is what the overview should show — but a merged figure cannot be
+ * *recorded*, because a settlement is an expense and an expense belongs to one
+ * group. Anything that writes a settlement needs this list instead.
+ */
+export function paymentsForUser(
+    groups: GroupTransactions[],
+    currentUserId: number
+): SuggestedPayment[] {
+    const payments: SuggestedPayment[] = [];
+
+    for (const { groupId, groupName, transactions } of groups) {
+        transactions.forEach((tx, index) => {
+            const iAmPayer = !tx.from_is_guest && tx.from_id === currentUserId;
+            const iAmPayee = !tx.to_is_guest && tx.to_id === currentUserId;
+            if (iAmPayer === iAmPayee) return;
+
+            payments.push({
+                key: `${groupId}-${index}`,
+                userId: iAmPayer ? tx.to_id : tx.from_id,
+                isGuest: iAmPayer ? tx.to_is_guest : tx.from_is_guest,
+                iPay: iAmPayer,
+                amount: tx.amount,
+                currency: tx.currency,
+                groupId,
+                groupName,
+            });
+        });
+    }
+
+    return payments.sort((a, b) => b.amount - a.amount);
+}
+
 /**
  * Total across counterparties, when they share a currency. Null otherwise —
  * summing across currencies without a rate would invent a number.

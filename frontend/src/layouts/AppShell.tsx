@@ -5,7 +5,6 @@ import MobileTabBar from './MobileTabBar';
 import FabSheet from './FabSheet';
 import type { ResumeTarget } from './FabSheet';
 import AddExpenseModal from '../AddExpenseModal';
-import SettleUpModal from '../SettleUpModal';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { useAppData } from '../contexts/AppDataContext';
 import { pinnedGroups } from '../utils/groupBalances';
@@ -22,14 +21,13 @@ import type { ShellActions } from './shellActions';
 const AppShell: React.FC = () => {
     const isDesktop = useIsDesktop();
     const navigate = useNavigate();
-    const { friends, groups, balances, refreshAll, refreshBalances } = useAppData();
+    const { friends, groups, balances, refreshAll } = useAppData();
 
     const [fabOpen, setFabOpen] = useState(false);
     const [expenseModal, setExpenseModal] = useState<{
         open: boolean;
         scanner: boolean;
     }>({ open: false, scanner: false });
-    const [settleUpOpen, setSettleUpOpen] = useState(false);
 
     const pinned = useMemo(
         () =>
@@ -68,7 +66,7 @@ const AppShell: React.FC = () => {
         () => setExpenseModal({ open: true, scanner: false }),
         []
     );
-    const openSettleUp = useCallback(() => setSettleUpOpen(true), []);
+    const openSettleUp = useCallback(() => navigate('/settle'), [navigate]);
     const shellActions = useMemo<ShellActions>(
         () => ({ openAddExpense, openSettleUp }),
         [openAddExpense, openSettleUp]
@@ -85,13 +83,6 @@ const AppShell: React.FC = () => {
                 onExpenseAdded={refreshAll}
                 friends={friends}
                 groups={groups}
-            />
-
-            <SettleUpModal
-                isOpen={settleUpOpen}
-                onClose={() => setSettleUpOpen(false)}
-                onSettled={refreshBalances}
-                friends={friends}
             />
         </>
     );

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { settlementForUser, settlementTotal } from '../settlement';
+import {
+    paymentsForUser,
+    settlementForUser,
+    settlementTotal,
+} from '../settlement';
 import type { GroupTransactions } from '../settlement';
 
 const ME = 1;
@@ -147,5 +151,49 @@ describe('settlementTotal', () => {
 
     it('returns null for an empty set', () => {
         expect(settlementTotal([])).toBeNull();
+    });
+});
+
+describe('paymentsForUser', () => {
+    it('keeps a person separate per group, unlike the merged view', () => {
+        const groups = [
+            group(1, 'Tahoe', [tx(2, ME, 5000)]),
+            group(2, 'Lunch', [tx(2, ME, 3420)]),
+        ];
+
+        // Merged: one counterparty at 8420.
+        expect(settlementForUser(groups, ME)).toHaveLength(1);
+        // Recordable: two payments, each carrying its own group.
+        const payments = paymentsForUser(groups, ME);
+        expect(payments).toHaveLength(2);
+        expect(payments.map((p) => p.groupId).sort()).toEqual([1, 2]);
+    });
+
+    it('marks direction without losing the magnitude', () => {
+        const payments = paymentsForUser(
+            [group(1, 'Tahoe', [tx(ME, 4, 4215), tx(2, ME, 8420)])],
+            ME
+        );
+        const iPay = payments.find((p) => p.iPay);
+        const theyPay = payments.find((p) => !p.iPay);
+
+        expect(iPay).toMatchObject({ userId: 4, amount: 4215 });
+        expect(theyPay).toMatchObject({ userId: 2, amount: 8420 });
+        // Amounts stay positive; `iPay` carries the sign.
+        expect(payments.every((p) => p.amount > 0)).toBe(true);
+    });
+
+    it('ignores transactions between two other people', () => {
+        expect(
+            paymentsForUser([group(1, 'Tahoe', [tx(2, 3, 5000)])], ME)
+        ).toEqual([]);
+    });
+
+    it('orders by size so the biggest payment leads', () => {
+        const payments = paymentsForUser(
+            [group(1, 'A', [tx(ME, 2, 100)]), group(2, 'B', [tx(ME, 3, 900)])],
+            ME
+        );
+        expect(payments.map((p) => p.amount)).toEqual([900, 100]);
     });
 });

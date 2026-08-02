@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { balancesApi } from '../services/api';
 import { useAppData } from '../contexts/AppDataContext';
 import { useAuth } from '../AuthContext';
-import { settlementForUser } from '../utils/settlement';
-import type { Counterparty, GroupTransactions } from '../utils/settlement';
+import { paymentsForUser, settlementForUser } from '../utils/settlement';
+import type {
+    Counterparty,
+    GroupTransactions,
+    SuggestedPayment,
+} from '../utils/settlement';
 
 /**
  * Who owes the current user, and who they owe, across every group.
@@ -14,13 +18,20 @@ import type { Counterparty, GroupTransactions } from '../utils/settlement';
  * fan-out is bounded by the user's group count and runs once per mount.
  */
 export function useSettlement(): {
+    /** Merged per person across groups — for display. */
     counterparties: Counterparty[];
+    /** Per group, so each one can be recorded as a settlement expense. */
+    payments: SuggestedPayment[];
     loading: boolean;
+    reload: () => void;
 } {
     const { user } = useAuth();
     const { groups } = useAppData();
     const [byGroup, setByGroup] = useState<GroupTransactions[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Bumping this re-runs the fan-out after a settlement is recorded.
+    const [nonce, setNonce] = useState(0);
 
     // Depend on the group ids rather than the array identity, so a refetch that
     // returns the same groups does not re-trigger the fan-out.
@@ -66,12 +77,19 @@ export function useSettlement(): {
             cancelled = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [groupKey]);
+    }, [groupKey, nonce]);
 
     const counterparties = useMemo(
         () => (user ? settlementForUser(byGroup, user.id) : []),
         [byGroup, user]
     );
 
-    return { counterparties, loading };
+    const payments = useMemo(
+        () => (user ? paymentsForUser(byGroup, user.id) : []),
+        [byGroup, user]
+    );
+
+    const reload = useCallback(() => setNonce((n) => n + 1), []);
+
+    return { counterparties, payments, loading, reload };
 }

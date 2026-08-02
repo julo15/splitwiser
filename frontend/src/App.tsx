@@ -17,6 +17,7 @@ import OverviewPage from './routes/OverviewPage';
 import GroupsPage from './routes/GroupsPage';
 import GroupPage from './routes/GroupPage';
 import PersonPage from './routes/PersonPage';
+import SettleUpPage from './routes/SettleUpPage';
 import PeoplePage from './routes/PeoplePage';
 import ActivityPage from './routes/ActivityPage';
 import SyncStatusBar from './components/SyncStatusBar';
@@ -76,6 +77,7 @@ function App() {
                 <Route path="/people" element={<PeoplePage />} />
                 <Route path="/friends/:friendId" element={<PersonPage />} />
                 <Route path="/activity" element={<ActivityPage />} />
+                <Route path="/settle" element={<SettleUpPage />} />
               </Route>
 
               {/* Full-page protected routes, outside the shell */}
