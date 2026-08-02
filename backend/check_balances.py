@@ -1,5 +1,5 @@
-from database import SessionLocal
 import models
+from database import SessionLocal
 
 db = SessionLocal()
 try:

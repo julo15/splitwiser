@@ -6,8 +6,7 @@ import os
 
 from openai import OpenAI
 
-from ocr.llm_service import SYSTEM_PROMPT, RESPONSE_SCHEMA
-
+from ocr.llm_service import RESPONSE_SCHEMA, SYSTEM_PROMPT
 
 # OpenAI structured output format wraps the schema
 _OPENAI_RESPONSE_FORMAT = {
@@ -27,24 +26,27 @@ def _get_client() -> OpenAI:
     return OpenAI(api_key=api_key)
 
 
-def parse_receipt(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
-    """Parse a receipt image using OpenAI GPT-4o vision."""
+def parse_receipt(pages: list[tuple[bytes, str]]) -> dict:
+    """Parse a receipt using OpenAI GPT-4o vision.
+
+    ``pages`` is a list of ``(image_bytes, mime_type)`` tuples. Multiple pages are
+    sent in a single call and treated as one receipt.
+    """
     client = _get_client()
 
-    b64_image = base64.b64encode(image_bytes).decode("utf-8")
-    image_url = f"data:{mime_type};base64,{b64_image}"
+    content = [{"type": "text", "text": "Extract all items from this receipt."}]
+    for image_bytes, mime_type in pages:
+        b64_image = base64.b64encode(image_bytes).decode("utf-8")
+        image_url = f"data:{mime_type};base64,{b64_image}"
+        content.append(
+            {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}}
+        )
 
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Extract all items from this receipt."},
-                    {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
-                ],
-            },
+            {"role": "user", "content": content},
         ],
         response_format=_OPENAI_RESPONSE_FORMAT,
         max_tokens=4096,

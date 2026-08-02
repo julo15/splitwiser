@@ -1,15 +1,16 @@
 """OAuth router: Google Sign-In authentication."""
 
 from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+import auth
 import models
 import schemas
-import auth
 from database import get_db
 from dependencies import get_current_user
-from oauth.google import verify_google_token, GoogleOAuthError
+from oauth.google import GoogleOAuthError, verify_google_token
 from utils.rate_limiter import auth_rate_limiter
 
 router = APIRouter(prefix="/auth/google", tags=["oauth"])
@@ -35,8 +36,8 @@ def google_authenticate(
     except GoogleOAuthError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Google token: {str(e)}"
-        )
+            detail=f"Invalid Google token: {e!s}"
+        ) from e
 
     google_id = google_info['google_id']
     google_email = google_info['email']
@@ -136,8 +137,8 @@ def link_google_account(
     except GoogleOAuthError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Google token: {str(e)}"
-        )
+            detail=f"Invalid Google token: {e!s}"
+        ) from e
 
     google_id = google_info['google_id']
 

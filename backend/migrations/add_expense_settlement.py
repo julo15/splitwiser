@@ -5,9 +5,9 @@ Migration script to add is_settlement column to expenses table.
 This allows expenses to be categorized as either regular expenses or settlements/payments.
 """
 
+import os
 import sqlite3
 import sys
-import os
 
 # Get the database path from environment or use default
 DATA_DIR = os.getenv("DATA_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

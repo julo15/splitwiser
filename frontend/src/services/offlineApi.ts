@@ -6,6 +6,8 @@
 import { db } from '../db';
 import { syncManager } from './syncManager';
 import { expensesApi, groupsApi } from './api';
+import type { CachedExpense, CachedGroup } from '../db/schema';
+import type { ExpensePayload } from '../types/expense';
 
 // ============================================================================
 // Offline-Aware Expenses API
@@ -15,7 +17,7 @@ export const offlineExpensesApi = {
   /**
    * Create an expense - works offline
    */
-  create: async (expenseData: any) => {
+  create: async (expenseData: ExpensePayload) => {
     if (navigator.onLine) {
       // Online: Normal API call
       try {
@@ -42,14 +44,18 @@ export const offlineExpensesApi = {
 
     // Offline: Generate temp ID and queue
     const tempId = crypto.randomUUID();
+    // An expense created offline is not yet a full CachedExpense: the server
+    // assigns created_by_id and the per-split ids on sync. Cast at this one
+    // boundary rather than making those fields optional for every reader.
     const offlineExpense = {
       id: tempId,
       ...expenseData,
+      group_id: expenseData.group_id ?? null,
       cached_at: Date.now(),
       is_temp: true,
       local_version: 1,
-      created_by_id: expenseData.created_by_id || 0 // Will be set properly on sync
-    };
+      created_by_id: 0 // Will be set properly on sync
+    } as unknown as CachedExpense;
 
     // Store in IndexedDB
     await db.expenses.add(offlineExpense);
@@ -68,7 +74,7 @@ export const offlineExpensesApi = {
   /**
    * Update an expense - works offline
    */
-  update: async (expenseId: number | string, expenseData: any) => {
+  update: async (expenseId: number | string, expenseData: ExpensePayload) => {
     if (navigator.onLine && typeof expenseId === 'number') {
       // Online: Normal API call
       try {
@@ -96,13 +102,14 @@ export const offlineExpensesApi = {
     // Offline: Update locally and queue
     const existing = await db.expenses.get(expenseId);
     if (existing) {
+      // Same as create: the edited splits carry no server ids until sync.
       const updated = {
         ...existing,
         ...expenseData,
         id: expenseId,
         cached_at: Date.now(),
         local_version: (existing.local_version || 1) + 1
-      };
+      } as unknown as Partial<CachedExpense>;
 
       await db.expenses.update(expenseId, updated);
 
@@ -180,7 +187,7 @@ export const offlineExpensesApi = {
         const expenses = await expensesApi.getAll(groupId);
 
         // Update cache
-        const cachedExpenses = expenses.map((e: any) => ({
+        const cachedExpenses = expenses.map((e: Omit<CachedExpense, 'cached_at' | 'is_temp' | 'local_version'>) => ({
           ...e,
           cached_at: Date.now(),
           is_temp: false,
@@ -359,7 +366,7 @@ export const offlineGroupsApi = {
         const groups = await groupsApi.getAll();
 
         // Update cache
-        const cachedGroups = groups.map((g: any) => ({
+        const cachedGroups = groups.map((g: Omit<CachedGroup, 'cached_at' | 'is_temp'>) => ({
           ...g,
           cached_at: Date.now(),
           is_temp: false

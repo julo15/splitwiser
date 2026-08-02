@@ -3,6 +3,7 @@
  */
 
 import { API_BASE_URL } from '../config';
+import type { ExpensePayload } from '../types/expense';
 
 /**
  * Get the authentication token from localStorage
@@ -344,6 +345,45 @@ export const groupsApi = {
         });
         return response;
     },
+
+    getSummary: async (groupId: number) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        try {
+            const response = await apiFetch(`/groups/${groupId}/summary`, {
+                signal: controller.signal,
+            });
+            if (!response.ok) throw new Error('Failed to fetch group summary');
+            return response.json();
+        } catch (err) {
+            if (err instanceof DOMException && err.name === 'AbortError') {
+                throw new Error('Summary request timed out');
+            }
+            throw err;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    },
+
+    getPublicSummary: async (shareLinkId: string) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/groups/public/${shareLinkId}/summary`,
+                { signal: controller.signal },
+            );
+            if (!response.ok) throw new Error('Failed to fetch public group summary');
+            return response.json();
+        } catch (err) {
+            if (err instanceof DOMException && err.name === 'AbortError') {
+                throw new Error('Summary request timed out');
+            }
+            throw err;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    },
 };
 
 // ============================================================================
@@ -372,7 +412,7 @@ export const expensesApi = {
         return response.json();
     },
 
-    create: async (expenseData: any) => {
+    create: async (expenseData: ExpensePayload) => {
         const response = await apiFetch('/expenses', {
             method: 'POST',
             body: JSON.stringify(expenseData),
@@ -380,7 +420,7 @@ export const expensesApi = {
         return response;
     },
 
-    update: async (expenseId: number, expenseData: any) => {
+    update: async (expenseId: number, expenseData: ExpensePayload) => {
         const response = await apiFetch(`/expenses/${expenseId}`, {
             method: 'PUT',
             body: JSON.stringify(expenseData),
@@ -491,7 +531,7 @@ export const profileApi = {
             const error = await response.json();
             // Handle FastAPI validation error array
             const errorMessage = Array.isArray(error.detail)
-                ? error.detail.map((e: any) => e.msg).join(', ')
+                ? error.detail.map((e: { msg: string }) => e.msg).join(', ')
                 : (error.detail || 'Failed to change password');
             throw new Error(errorMessage);
         }

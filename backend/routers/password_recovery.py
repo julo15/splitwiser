@@ -1,17 +1,16 @@
 """Password recovery router: forgot password and reset password."""
 
-from typing import Annotated
 from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+import auth
 import models
 import schemas
-import auth
 from database import get_db
-from utils.rate_limiter import password_reset_rate_limiter, auth_rate_limiter
-from utils.email import send_password_reset_email, send_password_changed_notification, is_email_configured
-
+from utils.email import is_email_configured, send_password_changed_notification, send_password_reset_email
+from utils.rate_limiter import auth_rate_limiter, password_reset_rate_limiter
 
 router = APIRouter(tags=["password-recovery"])
 

@@ -12,9 +12,9 @@ Usage:
     python migrations/add_google_oauth.py [--dry-run] [--db-path <path>]
 """
 
+import os
 import sqlite3
 import sys
-import os
 from pathlib import Path
 
 # Default to the database file in the backend directory

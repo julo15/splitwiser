@@ -7,14 +7,16 @@ Fix management relationships for ALL scenarios:
 
 This script looks at BOTH guest_members and group_members to find all issues.
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from database import Base
+
 import models
+
 
 def run_migration(db_path, dry_run=False):
     """Fix all management relationship issues"""

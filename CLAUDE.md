@@ -26,6 +26,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `backend/routers/balances.py` - Balance calculations, debt simplification
 - `backend/routers/friends.py` - Friend management, friend request emails
 - `backend/routers/ocr.py` - LLM-based receipt scanning endpoint
+- `backend/routers/summary.py` - Summary endpoint
 
 **Utilities:**
 - `backend/utils/currency.py` - Exchange rate fetching (Frankfurter API), caching
@@ -33,9 +34,11 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `backend/utils/splits.py` - Split calculation logic (equal, exact, percentage, shares, itemized)
 - `backend/utils/display.py` - Display name helpers for guests and claimed users
 - `backend/utils/email.py` - Brevo API email service for transactional emails
+- `backend/utils/summary.py` - Consumption aggregation primitive
+- `backend/utils/summary_cache.py` - Bounded in-memory TTL cache for public summary
 
 **Receipt Scanning:**
-- `backend/ocr/llm_service.py` - OpenAI GPT-4o vision-based receipt parsing with structured output
+- `backend/ocr/llm_service.py` - LLM vision-based receipt parsing (image or PDF) with structured output
 
 **Database Migrations:**
 - `backend/migrations/` - Migration scripts with helper tools
@@ -56,7 +59,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `frontend/src/services/offlineApi.ts` - Offline API wrapper using IndexedDB
 - `frontend/src/services/syncManager.ts` - Background sync manager for PWA
 - `frontend/src/db/schema.ts` - IndexedDB schema for offline storage
-- `frontend/src/types/` - TypeScript definitions (group.ts, expense.ts, balance.ts, friend.ts)
+- `frontend/src/types/` - TypeScript definitions (group.ts, expense.ts, balance.ts, friend.ts, summary.ts)
 - `frontend/src/utils/formatters.ts` - Money, date, and name formatting
 - `frontend/src/utils/expenseCalculations.ts` - Frontend split calculations
 
@@ -66,6 +69,9 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `frontend/src/ManageGuestModal.tsx` - Guest management and balance aggregation
 - `frontend/src/ManageMemberModal.tsx` - Member management for registered users
 - `frontend/src/hooks/useItemizedExpense.ts` - Itemized expense state management
+- `frontend/src/components/summary/SummarySection.tsx` - Collapsible summary section
+- `frontend/src/components/summary/MemberConsumptionTable.tsx` - Per-member rows
+- `frontend/src/components/summary/SpendingTrendChart.tsx` - Stacked bar chart (visx)
 
 **PWA Support:**
 - `frontend/public/manifest.json` - PWA manifest for installable app
@@ -80,7 +86,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - Registered members can also be managed for balance aggregation
 - Refresh tokens stored hashed (SHA-256) in database with server-side revocation
 - Itemized expenses use proportional tax/tip distribution
-- Receipt images stored in `data/receipts/` directory (configurable via `DATA_DIR` env var)
+- Receipt uploads (images and PDFs) stored in `data/receipts/` directory (configurable via `DATA_DIR` env var); PDFs are rasterized per-page for the LLM but the original file is preserved
 
 ## Development Commands
 
@@ -102,11 +108,97 @@ npm run lint  # Run ESLint
 ```
 
 ### Testing
+
+Backend (pytest, in-memory SQLite — no external services are contacted):
 ```bash
 cd backend
-pytest tests/test_main.py  # Run backend tests
-pytest tests/test_main.py::test_create_user -v  # Run single test
+source venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt  # test deps are in requirements-dev.txt
+pytest tests/                              # Run the whole suite
+pytest tests/test_expenses.py              # Run one file
+pytest tests/test_main.py::test_create_user -v  # Run a single test
+pytest tests/ --cov=. --cov-report=term-missing # With coverage
 ```
+
+Frontend (Vitest):
+```bash
+cd frontend
+npm run test        # Run once
+npm run test:watch  # Watch mode
+```
+
+Test layout:
+- `backend/tests/test_utils_*.py` — unit tests for pure logic (split maths,
+  validation, currency, display names, dates). No HTTP, no network.
+- `backend/tests/test_*.py` (others) — integration tests driving the real
+  FastAPI app through `TestClient` against a per-test in-memory database.
+- `backend/tests/test_performance_*.py` / `test_perf_*.py` — query-count
+  regression guards.
+- `frontend/src/**/__tests__/` — unit tests for pure utilities and hooks.
+
+Conventions:
+- Tests must not depend on execution order. Install FastAPI dependency
+  overrides via the `app_overrides` fixture rather than mutating
+  `app.dependency_overrides` directly, and never rebind that attribute — `app`
+  is a process-wide singleton and a leaked override silently authenticates
+  later tests as the wrong user.
+- Outbound calls (Frankfurter exchange rates, Brevo email, LLM receipt
+  scanning) are mocked; the suite runs offline.
+
+### Linting
+
+```bash
+cd frontend
+npm run lint      # report everything
+npm run lint:ci   # what CI runs: fails on any error, or >19 warnings
+```
+
+The codebase is free of ESLint errors and of `any`. Two rules are set to
+`warn` in `eslint.config.js` because their remaining violations need
+structural changes rather than local edits — see the comments there for the
+reasoning:
+- `react-hooks/set-state-in-effect` (fetch-on-mount, reset-modal-on-open)
+- `react-refresh/only-export-components` (context modules, app entry point)
+
+Those plus `react-hooks/exhaustive-deps` make up the 19 accepted warnings.
+`lint:ci` caps the count so the backlog cannot grow; lower the ceiling in
+`package.json` as warnings are worked off.
+
+### Backend static analysis
+
+```bash
+cd backend
+source venv/bin/activate
+ruff check .            # lint (config: backend/ruff.toml)
+ruff check . --fix      # apply safe autofixes
+pip-audit -r requirements.txt -r requirements-dev.txt  # dependency CVEs
+```
+
+Ruff runs a deliberately scoped starter set (`E4/E7/E9`, `F`, `I`, `B`,
+`RUF`) that the codebase holds at zero. `SIM` and `UP` are the natural next
+additions — see the comments in `ruff.toml` for what enabling them costs.
+Three ignores are framework requirements rather than style preferences, most
+importantly `E711`/`E712`: SQLAlchemy compiles `== None` / `== False` into
+SQL, and rewriting them to `is None` / `is False` silently breaks the query.
+
+`pip-audit` currently ignores PYSEC-2026-1325 in `ecdsa` (pulled in by
+python-jose). Upstream ships no fix, and it is unreachable here because JWTs
+use HS256 only — revisit if `auth.ALGORITHM` ever becomes an EC curve. The
+reasoning is recorded in `.github/workflows/audit.yml`.
+
+### Continuous integration
+
+CI runs on Python 3.11 / Node 20, matching the production image:
+- `.github/workflows/_tests.yml` — the reusable check definition (backend
+  tests, backend ruff, frontend tests, frontend eslint). Edit this to change
+  how the checks run; it is never triggered on its own.
+- `.github/workflows/tests.yml` — calls it for pull requests into `main`.
+- `.github/workflows/deploy.yml` — calls it as a gate before deploying to
+  Fly.io, so a push to `main` (or a manual deploy of another branch) only
+  ships when all four checks pass on that exact ref.
+- `.github/workflows/audit.yml` — `pip-audit`, on dependency-file changes and
+  weekly. Kept out of the deploy gate on purpose: a CVE disclosed upstream
+  should not block an unrelated hotfix from shipping.
 
 ### Database Migrations
 When schema changes are made, update the SQLite database:
@@ -158,7 +250,11 @@ ALTER TABLE table_name ADD COLUMN column_name TYPE DEFAULT 'value';
 - `GET /exchange_rates` - Current exchange rates
 
 ### OCR
-- `POST /ocr/scan-receipt` - Upload receipt image, get LLM-extracted items with prices
+- `POST /ocr/scan-receipt` - Upload a receipt image (JPEG/PNG/WebP) or PDF (up to 10 pages, treated as one receipt), get LLM-extracted items with prices
+
+### Summary
+- `GET /groups/{group_id}/summary` - Per-member consumption totals, group total, time-bucketed series (authenticated members)
+- `GET /groups/public/{share_link_id}/summary` - Narrower version for public share-link viewers (group total + single-series chart only)
 
 ## Key Database Fields
 

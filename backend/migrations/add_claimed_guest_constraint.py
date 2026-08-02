@@ -7,8 +7,9 @@ cannot have a managed_by relationship (since that relationship should
 be on the GroupMember record instead).
 """
 
-import sqlite3
 import os
+import sqlite3
+
 
 def main():
     db_path = os.environ.get("DATABASE_PATH", "./db.sqlite3")
@@ -31,7 +32,7 @@ def main():
 
         if violations:
             print(f"❌ Found {len(violations)} claimed guests with managed_by still set:")
-            for guest_id, name, claimed_by, managed_by in violations:
+            for guest_id, name, _claimed_by, _managed_by in violations:
                 print(f"  - Guest '{name}' (ID: {guest_id})")
             print("\nPlease run fix_claimed_guest_management_doublecount.py first!")
             return 1

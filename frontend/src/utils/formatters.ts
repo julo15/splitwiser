@@ -75,6 +75,15 @@ export const formatDateForInput = (date: Date = new Date()): string => {
 };
 
 /**
+ * Format a per-item share percentage: integer when whole, otherwise one decimal
+ * (e.g. 50 -> "50", 33.333 -> "33.3").
+ */
+export const formatItemPercent = (percent: number): string => {
+    const rounded = Math.round(percent * 10) / 10;
+    return Number.isInteger(rounded) ? `${rounded}` : `${rounded.toFixed(1)}`;
+};
+
+/**
  * Get display name for a user, showing "You" for current user
  */
 export const getUserDisplayName = (

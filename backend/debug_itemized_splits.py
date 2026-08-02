@@ -12,13 +12,14 @@ This will help identify discrepancies between stored splits and what the items c
 
 import argparse
 import sys
+
 from sqlalchemy.orm import Session
 
 # Add backend to path if needed
 sys.path.insert(0, '/app')
 
-from database import SessionLocal
 import models
+from database import SessionLocal
 
 
 def calculate_splits_from_items(db: Session, expense_id: int) -> dict:
@@ -113,7 +114,7 @@ def debug_expense(db: Session, expense: models.Expense):
         models.ExpenseSplit.expense_id == expense.id
     ).all()
 
-    print(f"\n--- Stored Splits ---")
+    print("\n--- Stored Splits ---")
     stored_totals = {}
     for split in stored_splits:
         key = f"{'guest' if split.is_guest else 'user'}_{split.user_id}"
@@ -130,11 +131,11 @@ def debug_expense(db: Session, expense: models.Expense):
     # Recalculate from items
     calc = calculate_splits_from_items(db, expense.id)
 
-    print(f"\n--- Item Breakdown ---")
+    print("\n--- Item Breakdown ---")
     for item in calc['item_breakdown']:
         print(f"  {item['item']} ({item['price']}): {item['assignments']}")
 
-    print(f"\n--- Recalculated from Items ---")
+    print("\n--- Recalculated from Items ---")
     print(f"  Regular subtotal: {calc['regular_total']}")
     print(f"  Tax/tip total: {calc['tax_tip_total']}")
     print(f"  Person subtotals (before tax/tip): {calc['person_subtotals']}")
@@ -144,7 +145,7 @@ def debug_expense(db: Session, expense: models.Expense):
     print(f"  TOTAL: {calc_sum}")
 
     # Compare
-    print(f"\n--- Comparison ---")
+    print("\n--- Comparison ---")
     has_discrepancy = False
 
     all_keys = set(stored_totals.keys()) | set(calc['person_totals'].keys())
@@ -165,7 +166,7 @@ def debug_expense(db: Session, expense: models.Expense):
 
     if stored_sum != expense.amount:
         print(f"\n  ⚠️  Stored splits ({stored_sum}) != expense amount ({expense.amount})")
-        print(f"      This may indicate unassigned items absorbed by payer")
+        print("      This may indicate unassigned items absorbed by payer")
 
     return has_discrepancy
 

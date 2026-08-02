@@ -1,13 +1,13 @@
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
-from fastapi.testclient import TestClient
-from main import app
-from models import User, Group, GroupMember, GuestMember, Expense, ExpenseSplit
-from database import get_db
+
 from auth import get_password_hash
+from models import Expense, ExpenseSplit, Group, GroupMember, User
+
 
 @pytest.fixture
 def query_counter():

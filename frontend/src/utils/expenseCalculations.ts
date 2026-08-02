@@ -1,4 +1,4 @@
-import type { Participant, ExpenseItem } from '../types/expense';
+import type { Participant, ExpenseItem, ExpenseItemDetail } from '../types/expense';
 
 export interface SplitResult {
     user_id: number;
@@ -145,6 +145,118 @@ export const calculateSharesSplit = (
     });
 
     return { splits };
+};
+
+export interface PersonItemShare {
+    description: string;
+    shareAmount: number; // in cents
+    percent: number;     // percentage (0-100) of the item this person has
+    isShared: boolean;   // true when the item has more than one assignment
+    sharedWith: number;  // number of OTHER assignees (0 for solo, >=1 for shared)
+}
+
+export interface PersonItemBreakdown {
+    items: PersonItemShare[];   // regular (non-tax/tip) items assigned to this person, with their share
+    subtotal: number;           // sum of shareAmount across items (cents)
+    tax: number;                // this person's proportional tax (cents)
+    tip: number;                // this person's proportional tip (cents)
+    sharePercent: number;       // personSubtotal / totalSubtotal * 100
+}
+
+/**
+ * Calculate the per-person breakdown of an itemized expense: which regular items
+ * are assigned to the person (with their per-item share) plus their proportional
+ * tax/tip. Ports the math previously inlined in ExpenseDetailModal verbatim.
+ *
+ * Note: this intentionally does NOT reuse the file's calculate*Split helpers. It
+ * computes an independent per-item floor share with no remainder reconciliation,
+ * because the headline owed total is sourced from split.amount_owed (authoritative)
+ * rather than recomputed here.
+ */
+export const calculatePersonItemBreakdown = (
+    person: { user_id: number; is_guest: boolean },
+    items: ExpenseItemDetail[]
+): PersonItemBreakdown => {
+    // Partition items
+    const regularItems = items.filter(i => !i.is_tax_tip);
+    const taxItems = items.filter(i => i.is_tax_tip && i.description.toLowerCase().includes('tax') && !i.description.toLowerCase().includes('tip'));
+    const tipItems = items.filter(i => i.is_tax_tip && i.description.toLowerCase().includes('tip') && !i.description.toLowerCase().includes('tax'));
+    const combinedItems = items.filter(i => i.is_tax_tip && i.description.toLowerCase() === 'tax/tip');
+
+    // Calculate this person's items and subtotal
+    const personItems: PersonItemShare[] = [];
+    let subtotal = 0;
+    regularItems.forEach(item => {
+        const isAssigned = item.assignments.some(
+            a => a.user_id === person.user_id && a.is_guest === person.is_guest
+        );
+        if (isAssigned) {
+            // Check if item has custom split type
+            const itemSplitType = item.split_type || 'EQUAL';
+            const itemSplitDetails = item.split_details || {};
+            const personKey = person.is_guest ? `guest_${person.user_id}` : `user_${person.user_id}`;
+
+            const isShared = item.assignments.length > 1;
+            const sharedWith = item.assignments.length - 1;
+
+            let shareAmount = 0;
+            let percent = 0;
+            if (item.assignments.length === 1) {
+                // Single assignee gets the whole item.
+                shareAmount = item.price;
+                percent = 100;
+            } else if (itemSplitType === 'EQUAL') {
+                // Equal split among assignees.
+                const shareCount = item.assignments.length;
+                shareAmount = Math.floor(item.price / shareCount);
+                percent = 100 / shareCount;
+            } else if (itemSplitType === 'EXACT') {
+                // Use exact amount
+                const detail = itemSplitDetails[personKey];
+                const personAmount = detail?.amount || 0;
+                shareAmount = personAmount;
+                percent = item.price > 0 ? (personAmount / item.price) * 100 : 0;
+            } else if (itemSplitType === 'PERCENT') {
+                // Use percentage
+                const detail = itemSplitDetails[personKey];
+                const percentage = detail?.percentage || 0;
+                shareAmount = Math.floor(item.price * (percentage / 100));
+                percent = percentage;
+            } else if (itemSplitType === 'SHARES') {
+                // Calculate based on shares
+                let totalShares = 0;
+                item.assignments.forEach(a => {
+                    const key = a.is_guest ? `guest_${a.user_id}` : `user_${a.user_id}`;
+                    const detail = itemSplitDetails[key];
+                    totalShares += detail?.shares || 1;
+                });
+
+                const personShares = itemSplitDetails[personKey]?.shares || 1;
+                if (totalShares > 0) {
+                    shareAmount = Math.floor((item.price * personShares) / totalShares);
+                    percent = (personShares / totalShares) * 100;
+                }
+            }
+
+            personItems.push({ description: item.description, shareAmount, percent, isShared, sharedWith });
+            subtotal += shareAmount;
+        }
+    });
+
+    // Calculate total subtotal of all regular items
+    const totalSubtotal = regularItems.reduce((sum, item) => sum + item.price, 0);
+
+    // Calculate person's share percentage of the total
+    const sharePercent = totalSubtotal > 0 ? (subtotal / totalSubtotal) * 100 : 0;
+
+    // Calculate tax and tip amounts
+    const totalTax = taxItems.reduce((sum, i) => sum + i.price, 0) + combinedItems.reduce((sum, i) => sum + i.price, 0);
+    const totalTip = tipItems.reduce((sum, i) => sum + i.price, 0);
+
+    const tax = totalSubtotal > 0 ? Math.round(totalTax * (subtotal / totalSubtotal)) : 0;
+    const tip = totalSubtotal > 0 ? Math.round(totalTip * (subtotal / totalSubtotal)) : 0;
+
+    return { items: personItems, subtotal, tax, tip, sharePercent };
 };
 
 /**

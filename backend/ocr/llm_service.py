@@ -69,9 +69,14 @@ RESPONSE_SCHEMA = {
 
 # ── Provider dispatch ───────────────────────────────────────────────────
 
-def parse_receipt(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
+def parse_receipt(pages: list[tuple[bytes, str]]) -> dict:
     """
-    Parse a receipt image using the configured LLM provider.
+    Parse a receipt using the configured LLM provider.
+
+    ``pages`` is a list of ``(image_bytes, mime_type)`` tuples. Multiple pages (e.g.
+    a multi-page PDF rasterized to images) are treated as one receipt: all pages are
+    sent in a single LLM call so the model produces one coherent result. A single
+    image is just a one-element list.
 
     Returns dict with: items (list), tax_cents, tip_cents, total_cents.
     Each item has: description (str), price_cents (int), quantity (int).
@@ -85,7 +90,7 @@ def parse_receipt(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
     else:
         raise RuntimeError(f"Unknown LLM_PROVIDER: {provider!r}. Use 'openai' or 'gemini'.")
 
-    result = _parse(image_bytes, mime_type)
+    result = _parse(list(pages))
 
     # Validate / sanitize items regardless of provider
     for item in result.get("items", []):

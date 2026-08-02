@@ -3,8 +3,9 @@ Migration: Add indexes for friend expense queries
 Adds indexes to improve performance of friend expense and balance queries.
 """
 
-import sqlite3
 import os
+import sqlite3
+
 
 def run_migration():
     # Find the database

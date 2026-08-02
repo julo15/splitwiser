@@ -33,7 +33,7 @@ const DeleteGroupConfirm: React.FC<DeleteGroupConfirmProps> = ({ isOpen, onClose
                 const err = await response.json();
                 setError(err.detail || 'Failed to delete group');
             }
-        } catch (error) {
+        } catch {
             setError('Failed to delete group');
         } finally {
             setIsDeleting(false);

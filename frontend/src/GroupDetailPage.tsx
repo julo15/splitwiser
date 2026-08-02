@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { usePageTitle } from './hooks/usePageTitle';
 import { getApiUrl } from './api';
@@ -16,7 +16,9 @@ import SimplifyDebtsModal from './SimplifyDebtsModal';
 import AlertDialog from './components/AlertDialog';
 import SendFriendRequestModal from './SendFriendRequestModal';
 import ExpenseListItem from './components/ExpenseListItem';
+import SummarySection from './components/summary/SummarySection';
 import { formatMoney } from './utils/formatters';
+import { getErrorMessage, getErrorName } from './utils/errors';
 
 interface GroupMember {
     id: number;
@@ -94,6 +96,7 @@ interface Friend {
 const GroupDetailPage: React.FC = () => {
     const { groupId, shareLinkId } = useParams<{ groupId?: string; shareLinkId?: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const { user } = useAuth();
 
     const [group, setGroup] = useState<Group | null>(null);
@@ -317,10 +320,11 @@ const GroupDetailPage: React.FC = () => {
                 // Fetch balances separately to use conversion parameter
                 await fetchBalances(showInGroupCurrency ? groupData.default_currency : undefined);
             }
-        } catch (err: any) {
-            if (err.message?.includes('404') || err.message?.includes('not found')) {
+        } catch (err) {
+            const message = getErrorMessage(err);
+            if (message?.includes('404') || message?.includes('not found')) {
                 setError('Group not found');
-            } else if (err.message?.includes('403')) {
+            } else if (message?.includes('403')) {
                 setError('You are not a member of this group');
             } else {
                 setError('Failed to load group data');
@@ -379,7 +383,7 @@ const GroupDetailPage: React.FC = () => {
                     type: 'error'
                 });
             }
-        } catch (error) {
+        } catch {
             setAlertDialog({
                 isOpen: true,
                 title: 'Error',
@@ -408,7 +412,7 @@ const GroupDetailPage: React.FC = () => {
                     type: 'error'
                 });
             }
-        } catch (error) {
+        } catch {
             setAlertDialog({
                 isOpen: true,
                 title: 'Error',
@@ -433,7 +437,7 @@ const GroupDetailPage: React.FC = () => {
                     type: 'error'
                 });
             }
-        } catch (error) {
+        } catch {
             setAlertDialog({
                 isOpen: true,
                 title: 'Error',
@@ -477,9 +481,9 @@ const GroupDetailPage: React.FC = () => {
                             url: shareUrl
                         });
                         return; // Success - no alert needed
-                    } catch (shareErr: any) {
+                    } catch (shareErr) {
                         // User cancelled or share failed, fall through to clipboard
-                        if (shareErr.name === 'AbortError') {
+                        if (getErrorName(shareErr) === 'AbortError') {
                             return; // User cancelled, don't show error
                         }
                     }
@@ -529,7 +533,7 @@ const GroupDetailPage: React.FC = () => {
                             type: 'alert'
                         });
                     }
-                } catch (execErr) {
+                } catch {
                     // Show the URL as last resort
                     setAlertDialog({
                         isOpen: true,
@@ -690,7 +694,7 @@ const GroupDetailPage: React.FC = () => {
             <header className="bg-white dark:bg-gray-800 shadow-sm dark:shadow-gray-900/50">
                 {isPublicView && !user && (
                     <div className="bg-blue-50 dark:bg-blue-900/30 px-4 py-2 text-sm text-blue-700 dark:text-blue-300 text-center border-b border-blue-100 dark:border-blue-800">
-                        You are viewing this group as a guest. To join, find your name in the <strong>Members</strong> list below and click <strong>Claim</strong>.
+                        You are viewing this group as a guest. To join, find your name in the <strong>Members</strong> list below and click <strong>Claim</strong> — or <Link to={`/login?returnTo=${encodeURIComponent(location.pathname)}`} className="underline font-medium hover:text-blue-900 dark:hover:text-blue-200">log in</Link> if you already have an account.
                     </div>
                 )}
                 {isPublicView && user && (
@@ -1095,6 +1099,17 @@ const GroupDetailPage: React.FC = () => {
                             )}
                         </div>
                     )}
+                </div>
+
+                {/* Summary Section - Collapsible (last section on the page). Passes
+                    either groupId (authenticated) or shareLinkId (public share-link
+                    view), matching how isPublicView is detected elsewhere on this page. */}
+                <div className="mt-4">
+                    <SummarySection
+                        groupId={!isPublicView && groupId ? parseInt(groupId) : undefined}
+                        shareLinkId={isPublicView ? shareLinkId : undefined}
+                        currentUserId={user?.id ?? null}
+                    />
                 </div>
             </main>
 

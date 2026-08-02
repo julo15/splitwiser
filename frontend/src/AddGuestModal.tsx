@@ -43,7 +43,7 @@ const AddGuestModal: React.FC<AddGuestModalProps> = ({ isOpen, onClose, onGuestA
                 const err = await response.json();
                 setError(err.detail || 'Failed to add guest');
             }
-        } catch (error) {
+        } catch {
             setError('Network error. Please try again.');
         } finally {
             setIsSubmitting(false);

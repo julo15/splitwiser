@@ -58,7 +58,7 @@ const AddGroupModal: React.FC<AddGroupModalProps> = ({ isOpen, onClose, onGroupA
             } else {
                 setError('Failed to create group');
             }
-        } catch (error) {
+        } catch {
             setError('Network error. Please try again.');
         } finally {
             setIsSubmitting(false);

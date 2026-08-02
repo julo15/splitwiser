@@ -1,4 +1,5 @@
-from fastapi import UploadFile, HTTPException
+from fastapi import HTTPException, UploadFile
+
 
 async def read_upload_file_securely(file: UploadFile, max_size_bytes: int) -> bytes:
     """

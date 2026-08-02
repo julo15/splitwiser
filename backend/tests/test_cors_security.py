@@ -1,10 +1,11 @@
-import os
 import importlib
-import pytest
+import os
+from typing import Optional
+
 from fastapi.testclient import TestClient
 
 
-def _make_app_with_origins(origins_env: str = None):
+def _make_app_with_origins(origins_env: Optional[str] = None):
     """Create a fresh app instance with the given BACKEND_CORS_ORIGINS."""
     old = os.environ.get("BACKEND_CORS_ORIGINS")
     try:

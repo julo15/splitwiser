@@ -57,7 +57,7 @@ const EditGroupModal: React.FC<EditGroupModalProps> = ({ isOpen, onClose, group,
                 const err = await response.json();
                 setError(err.detail || 'Failed to update group');
             }
-        } catch (error) {
+        } catch {
             setError('Failed to update group');
         } finally {
             setIsSubmitting(false);

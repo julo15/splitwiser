@@ -60,6 +60,8 @@ export interface ExpenseItemDetail {
     price: number;
     is_tax_tip: boolean;
     assignments: Array<ItemAssignment & { user_name: string; expense_guest_id?: number }>;
+    split_type?: 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES'; // How to split this item among assignees
+    split_details?: { [key: string]: { amount?: number; percentage?: number; shares?: number } }; // Split details keyed by "user_{id}" or "guest_{id}"
 }
 
 export interface ExpenseWithSplits {
@@ -87,3 +89,45 @@ export interface ExpenseWithSplits {
 }
 
 export type SplitType = 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES' | 'ITEMIZED';
+
+/**
+ * A split as sent to the server: no id, no expense_id, no resolved user_name.
+ * Structurally compatible with `SplitResult` from utils/expenseCalculations,
+ * declared here to keep types/ free of a dependency back on utils/.
+ */
+export interface ExpenseSplitInput {
+    user_id: number;
+    amount_owed: number;
+    /** Defaults to false server-side when omitted. */
+    is_guest?: boolean;
+    percentage?: number;
+    shares?: number;
+}
+
+/**
+ * Request body sent to POST /expenses and PUT /expenses/{id}.
+ *
+ * This is the write shape, distinct from `ExpenseWithSplits` (the read shape):
+ * splits carry no ids yet, and items are sent as `ExpenseItem` rather than the
+ * server-assigned `ExpenseItemDetail`.
+ */
+export interface ExpensePayload {
+    description: string;
+    amount: number;
+    currency: string;
+    date: string;
+    payer_id: number;
+    payer_is_guest: boolean;
+    split_type: SplitType;
+    splits: ExpenseSplitInput[];
+    // Present only for non-group expenses paid by an ad-hoc guest.
+    payer_is_expense_guest?: boolean;
+    payer_temp_guest_id?: string | null;
+    group_id?: number | null;
+    items?: ExpenseItem[];
+    expense_guests?: ExpenseGuestCreate[];
+    icon?: string | null;
+    receipt_image_path?: string | null;
+    notes?: string | null;
+    is_settlement?: boolean;
+}
