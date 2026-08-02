@@ -482,3 +482,73 @@ class TestPublicRateLimiting:
         assert 200 in statuses
         assert 429 in statuses
         assert statuses.count(200) <= tab_join_rate_limiter.requests_limit
+
+
+class TestSelfClaim:
+    def test_the_host_can_claim_their_own_items(self, client):
+        """
+        The host is a participant like anyone else. Their claim token is never
+        handed out, so without this route they could not say what they had
+        except by opening their own link and joining twice.
+        """
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        item_id = tab["items"][0]["id"]
+        me = tab["participants"][0]["id"]
+
+        response = client.post(
+            f"/tabs/{tab['id']}/items/{item_id}/claim",
+            json={"claimed": True},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        item = next(i for i in response.json()["items"] if i["id"] == item_id)
+        assert item["claimed_by"] == [me]
+
+        released = client.post(
+            f"/tabs/{tab['id']}/items/{item_id}/claim",
+            json={"claimed": False},
+            headers=headers,
+        )
+        item = next(i for i in released.json()["items"] if i["id"] == item_id)
+        assert item["claimed_by"] == []
+
+    def test_claiming_twice_is_idempotent(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        item_id = tab["items"][0]["id"]
+
+        for _ in range(3):
+            body = client.post(
+                f"/tabs/{tab['id']}/items/{item_id}/claim",
+                json={"claimed": True},
+                headers=headers,
+            ).json()
+
+        item = next(i for i in body["items"] if i["id"] == item_id)
+        assert len(item["claimed_by"]) == 1
+
+    def test_someone_not_at_the_table_cannot_claim(self, client):
+        owner = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, owner)
+        stranger = register(client, "mallory@example.com", "Mallory")
+
+        response = client.post(
+            f"/tabs/{tab['id']}/items/{tab['items'][0]['id']}/claim",
+            json={"claimed": True},
+            headers=stranger,
+        )
+        # Indistinguishable from a tab that does not exist.
+        assert response.status_code == 404
+
+    def test_a_closed_tab_refuses_a_self_claim(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        client.post(f"/tabs/{tab['id']}/close", json={}, headers=headers)
+
+        response = client.post(
+            f"/tabs/{tab['id']}/items/{tab['items'][0]['id']}/claim",
+            json={"claimed": True},
+            headers=headers,
+        )
+        assert response.status_code == 409

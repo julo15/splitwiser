@@ -550,6 +550,17 @@ export const tabsApi = {
         return response.json();
     },
 
+    // Claim as the signed-in participant. Distinct from publicTabsApi.claim:
+    // identity comes from the session, not from a claim token.
+    claimOwn: async (tabId: number, itemId: number, claimed: boolean) => {
+        const response = await apiFetch(`/tabs/${tabId}/items/${itemId}/claim`, {
+            method: 'POST',
+            body: JSON.stringify({ claimed }),
+        });
+        if (!response.ok) throw new Error('Could not update that item');
+        return response.json();
+    },
+
     revoke: async (tabId: number) => {
         const response = await apiFetch(`/tabs/${tabId}/revoke`, { method: 'POST' });
         if (!response.ok) throw new Error('Failed to revoke the link');

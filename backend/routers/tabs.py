@@ -277,6 +277,72 @@ def delete_tab_item(
     return _tab_out(db, tab)
 
 
+@router.post("/tabs/{tab_id}/items/{item_id}/claim", response_model=schemas.TabOut)
+def claim_own_tab_item(
+    tab_id: int,
+    item_id: int,
+    payload: schemas.TabSelfClaimRequest,
+    current_user: Annotated[models.User, Depends(get_current_user)],
+    db: Session = Depends(get_db),
+):
+    """
+    Claim a line as a signed-in participant.
+
+    The host is a participant like anyone else and has to be able to say what
+    they had. They cannot use the public claim route — that needs a claim
+    token, and theirs is never handed out — so identity comes from the session
+    instead. Open to any signed-in participant, not just the owner.
+    """
+    tab = db.query(models.Tab).filter(models.Tab.id == tab_id).first()
+    if not tab:
+        raise HTTPException(status_code=404, detail="Tab not found")
+
+    participant = (
+        db.query(models.TabParticipant)
+        .filter(
+            models.TabParticipant.tab_id == tab.id,
+            models.TabParticipant.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not participant:
+        # Not at this table; same shape as a missing tab.
+        raise HTTPException(status_code=404, detail="Tab not found")
+
+    if tab.status != "open":
+        raise HTTPException(status_code=409, detail="This tab is already closed")
+
+    item = (
+        db.query(models.TabItem)
+        .filter(models.TabItem.id == item_id, models.TabItem.tab_id == tab.id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    existing = (
+        db.query(models.TabItemClaim)
+        .filter(
+            models.TabItemClaim.item_id == item.id,
+            models.TabItemClaim.participant_id == participant.id,
+        )
+        .first()
+    )
+
+    if payload.claimed and not existing:
+        db.add(
+            models.TabItemClaim(
+                tab_id=tab.id, item_id=item.id, participant_id=participant.id
+            )
+        )
+        db.commit()
+    elif not payload.claimed and existing:
+        db.delete(existing)
+        db.commit()
+
+    return _tab_out(db, tab)
+
+
 @router.post("/tabs/{tab_id}/revoke", response_model=schemas.TabOut)
 def revoke_tab_link(
     tab_id: int,

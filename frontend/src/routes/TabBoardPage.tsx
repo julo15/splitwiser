@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, ShareNetwork, Trash } from '@phosphor-icons/react';
+import { ArrowLeft, Check, Plus, ShareNetwork, Trash } from '@phosphor-icons/react';
 import { Avatar, Button, Card, Money } from '../components/ui';
 import ClaimerStack from '../components/tab/ClaimerStack';
 import { useAuth } from '../AuthContext';
@@ -127,6 +127,15 @@ const TabBoardPage: React.FC = () => {
         }
     };
 
+    const toggleMine = async (itemId: number, claimed: boolean) => {
+        if (id === undefined) return;
+        try {
+            setTab(await tabsApi.claimOwn(id, itemId, claimed));
+        } catch {
+            setError('Could not update that item');
+        }
+    };
+
     const handleDeleteItem = async (itemId: number) => {
         if (id === undefined) return;
         try {
@@ -159,6 +168,8 @@ const TabBoardPage: React.FC = () => {
         const claimers = item.claimed_by
             .map((pid) => participantsById.get(pid))
             .filter((p): p is NonNullable<typeof p> => Boolean(p));
+
+        const mine = me ? item.claimed_by.includes(me.id) : false;
 
         const names =
             claimers.length === 0
@@ -202,6 +213,26 @@ const TabBoardPage: React.FC = () => {
                     tone="muted"
                     className="text-[13.5px] w-[62px] text-right flex-none"
                 />
+
+                {tab.status === 'open' && (
+                    <button
+                        type="button"
+                        onClick={() => toggleMine(item.id, !mine)}
+                        aria-pressed={mine}
+                        aria-label={
+                            mine
+                                ? `Remove your claim on ${item.description}`
+                                : `Claim ${item.description}`
+                        }
+                        className={`flex-none w-[22px] h-[22px] rounded-[7px] flex items-center justify-center ${
+                            mine
+                                ? 'bg-sw-accent text-sw-on-accent'
+                                : 'shadow-[inset_0_0_0_1.5px_var(--sw-line)] hover:shadow-[inset_0_0_0_1.5px_var(--sw-accent)]'
+                        } focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2`}
+                    >
+                        {mine && <Check size={14} weight="bold" />}
+                    </button>
+                )}
 
                 {tab.status === 'open' && item.added_manually && (
                     <button

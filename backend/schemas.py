@@ -657,6 +657,11 @@ class TabClaimRequest(BaseModel):
     claimed: bool = True
 
 
+class TabSelfClaimRequest(BaseModel):
+    """A signed-in participant claiming for themselves; no token needed."""
+    claimed: bool = True
+
+
 class TabCloseRequest(BaseModel):
     """Closing turns the tab into one ordinary direct expense."""
     payer_participant_id: Optional[int] = None

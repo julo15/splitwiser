@@ -2,7 +2,6 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './Login';
 import Register from './Register';
-import GroupDetailPage from './GroupDetailPage';
 import HelpPage from './HelpPage';
 import AccountSettingsPage from './AccountSettingsPage';
 import ForgotPasswordPage from './ForgotPasswordPage';
@@ -21,6 +20,7 @@ import SettleUpPage from './routes/SettleUpPage';
 import TabBoardPage from './routes/TabBoardPage';
 import TabClosePage from './routes/TabClosePage';
 import TabClaimPage from './routes/TabClaimPage';
+import PublicGroupPage from './routes/PublicGroupPage';
 import PeoplePage from './routes/PeoplePage';
 import ActivityPage from './routes/ActivityPage';
 import SyncStatusBar from './components/SyncStatusBar';
@@ -97,7 +97,7 @@ function App() {
               <Route path="/t/:shareToken" element={<TabClaimPage />} />
 
               {/* Public share link */}
-              <Route path="/share/:shareLinkId" element={<GroupDetailPage />} />
+              <Route path="/share/:shareLinkId" element={<PublicGroupPage />} />
             </Routes>
             <SyncStatusBar />
           </Router>

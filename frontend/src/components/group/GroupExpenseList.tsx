@@ -9,7 +9,8 @@ export interface GroupExpenseListProps {
     currentUserId?: number;
     payerName: (expense: GroupExpense) => string;
     selectedId?: number | null;
-    onSelect: (expense: GroupExpense) => void;
+    /** Omit on read-only surfaces; rows then render as plain, unfocusable rows. */
+    onSelect?: (expense: GroupExpense) => void;
     /** 'compact' is the desktop pane; 'full' is the mobile list. */
     variant?: 'compact' | 'full';
 }
@@ -36,7 +37,7 @@ const ExpenseRow: React.FC<{
     currentUserId?: number;
     payerName: (expense: GroupExpense) => string;
     selected: boolean;
-    onSelect: () => void;
+    onSelect?: () => void;
     compact: boolean;
 }> = ({ expense, currentUserId, payerName, selected, onSelect, compact }) => {
     const impact = expenseImpact(expense, currentUserId);
@@ -46,17 +47,20 @@ const ExpenseRow: React.FC<{
         ? 'flex items-center gap-3 px-2.5 py-[11px] rounded-sw-row w-full text-left'
         : 'flex items-center gap-3 py-[11px] border-b border-sw-line w-full text-left';
 
-    return (
-        <button
-            type="button"
-            onClick={onSelect}
-            aria-current={selected ? 'true' : undefined}
-            className={`${base} ${
-                selected
-                    ? 'bg-sw-surface shadow-[0_0_0_1px_var(--sw-accent-soft)]'
-                    : 'hover:bg-sw-surface'
-            } ${expense.is_settlement ? 'opacity-[0.72]' : ''} focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2`}
-        >
+    const classes = `${base} ${
+        selected
+            ? 'bg-sw-surface shadow-[0_0_0_1px_var(--sw-accent-soft)]'
+            : onSelect
+              ? 'hover:bg-sw-surface'
+              : ''
+    } ${expense.is_settlement ? 'opacity-[0.72]' : ''} ${
+        onSelect
+            ? 'focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2'
+            : ''
+    }`;
+
+    const inner = (
+        <>
             <IconTile
                 tone={compact ? 'neutral' : 'surface'}
                 size={compact ? 32 : 38}
@@ -118,6 +122,21 @@ const ExpenseRow: React.FC<{
                         />
                     ))}
             </div>
+        </>
+    );
+
+    if (!onSelect) {
+        return <div className={classes}>{inner}</div>;
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={onSelect}
+            aria-current={selected ? 'true' : undefined}
+            className={classes}
+        >
+            {inner}
         </button>
     );
 };
@@ -183,7 +202,7 @@ const GroupExpenseList: React.FC<GroupExpenseListProps> = ({
                             currentUserId={currentUserId}
                             payerName={payerName}
                             selected={expense.id === selectedId}
-                            onSelect={() => onSelect(expense)}
+                            onSelect={onSelect ? () => onSelect(expense) : undefined}
                             compact={compact}
                         />
                     ))}
