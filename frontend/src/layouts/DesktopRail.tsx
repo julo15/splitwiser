@@ -108,14 +108,15 @@ const DesktopRail: React.FC<DesktopRailProps> = ({
                                 key={group.id}
                                 type="button"
                                 onClick={() => navigate(`/groups/${group.id}`)}
-                                className="flex items-center gap-[9px] px-2.5 py-[7px] rounded-lg text-sw-muted hover:text-sw-text text-left focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
+                                title={group.name}
+                                className="flex items-center gap-2 px-2 py-[7px] rounded-lg text-sw-muted hover:text-sw-text text-left focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                             >
                                 <span className="text-[15px] flex-none" aria-hidden="true">
                                     {group.icon || '👥'}
                                 </span>
-                                <span className="truncate">{group.name}</span>
+                                <span className="truncate text-[13px]">{group.name}</span>
                                 {balance === null || balance === 0 ? (
-                                    <span className="ml-auto text-xs text-sw-dim flex-none">
+                                    <span className="ml-auto text-[11px] text-sw-dim flex-none">
                                         even
                                     </span>
                                 ) : (
@@ -124,7 +125,7 @@ const DesktopRail: React.FC<DesktopRailProps> = ({
                                         currency={currency}
                                         sign="always"
                                         tone="auto"
-                                        className="ml-auto text-xs flex-none"
+                                        className="ml-auto text-[11px] flex-none"
                                     />
                                 )}
                             </button>

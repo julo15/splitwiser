@@ -16,6 +16,7 @@ import { AppDataProvider } from './contexts/AppDataContext';
 import AppShell from './layouts/AppShell';
 import OverviewPage from './routes/OverviewPage';
 import GroupsPage from './routes/GroupsPage';
+import GroupPage from './routes/GroupPage';
 import PeoplePage from './routes/PeoplePage';
 import ActivityPage from './routes/ActivityPage';
 import SyncStatusBar from './components/SyncStatusBar';
@@ -71,7 +72,7 @@ function App() {
               <Route element={<ShellRoute />}>
                 <Route path="/" element={<OverviewPage />} />
                 <Route path="/groups" element={<GroupsPage />} />
-                <Route path="/groups/:groupId" element={<GroupDetailPage />} />
+                <Route path="/groups/:groupId" element={<GroupPage />} />
                 <Route path="/people" element={<PeoplePage />} />
                 <Route path="/friends/:friendId" element={<FriendDetailPage />} />
                 <Route path="/activity" element={<ActivityPage />} />
