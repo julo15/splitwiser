@@ -32,7 +32,12 @@
     --sw-dim: #75798c;
     --sw-line: #cfd3e5;
     --sw-accent: #796cbf;
-    --sw-accent-soft: #e7e5fe;
+    /*
+     * Darkened from the bundle's #e7e5fe, which is within a hair of the light
+     * --sw-bg (#e4e7f5): an accent avatar sitting straight on the page had no
+     * visible disc at all. Still a tint, still soft against --sw-surface.
+     */
+    --sw-accent-soft: #d9d5fb;
     --sw-accent-ghost: #f0eeff;
     --sw-pos: #1c8567;
     --sw-pos-soft: #d8f0e7;

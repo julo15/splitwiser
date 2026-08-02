@@ -25,7 +25,7 @@ import type { ShellActions } from './shellActions';
 const AppShell: React.FC = () => {
     const isDesktop = useIsDesktop();
     const navigate = useNavigate();
-    const { friends, groups, balances, refreshAll } = useAppData();
+    const { friends, groups, balances, pendingRequests, refreshAll } = useAppData();
 
     const [fabOpen, setFabOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
@@ -207,6 +207,7 @@ const AppShell: React.FC = () => {
                     peopleCount={friends.length}
                     pinned={pinned}
                     onOpenProfile={openProfile}
+                    pendingRequests={pendingRequests}
                 />
                 <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
                     {content}

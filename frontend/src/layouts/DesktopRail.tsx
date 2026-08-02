@@ -10,7 +10,7 @@ import {
     Sun,
     Gear,
 } from '@phosphor-icons/react';
-import { Avatar, Money } from '../components/ui';
+import { Avatar, Badge, Money } from '../components/ui';
 import { useAuth } from '../AuthContext';
 import { useTheme } from '../ThemeContext';
 import type { Group } from '../types/group';
@@ -28,6 +28,8 @@ export interface DesktopRailProps {
     pinned?: PinnedGroup[];
     /** Opens the account menu — help and sign-out live there too. */
     onOpenProfile?: () => void;
+    /** Things waiting on you behind the account menu. */
+    pendingRequests?: number;
 }
 
 interface NavDef {
@@ -49,6 +51,7 @@ const DesktopRail: React.FC<DesktopRailProps> = ({
     peopleCount,
     pinned = [],
     onOpenProfile,
+    pendingRequests = 0,
 }) => {
     const { user } = useAuth();
     const { isDark, toggleTheme } = useTheme();
@@ -146,7 +149,21 @@ const DesktopRail: React.FC<DesktopRailProps> = ({
                         aria-label="Your account"
                         className="flex items-center gap-[9px] min-w-0 flex-1 text-left rounded hover:text-sw-text focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                     >
-                        <Avatar name={user?.full_name || ''} variant="accent" size={26} />
+                        <span className="relative flex-none">
+                            <Avatar
+                                name={user?.full_name || ''}
+                                variant="accent"
+                                size={26}
+                            />
+                            <Badge
+                                count={pendingRequests}
+                                ring="sunk"
+                                label={`${pendingRequests} friend request${
+                                    pendingRequests === 1 ? '' : 's'
+                                } waiting`}
+                                className="absolute -top-0.5 -right-0.5"
+                            />
+                        </span>
                         <span className="text-[13px] truncate">{user?.full_name}</span>
                     </button>
                     <div className="ml-auto flex gap-0.5 text-sw-dim flex-none">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Handshake, Lightning } from '@phosphor-icons/react';
 import {
     Avatar,
+    Badge,
     Button,
     Card,
     Money,
@@ -53,6 +54,7 @@ const OverviewPage: React.FC = () => {
         showInMyCurrency,
         setShowInMyCurrency,
         displayCurrency,
+        pendingRequests,
     } = useAppData();
     const { expenses, loading } = useExpenseFeed();
     const { payerName, groupName } = useExpenseLabels();
@@ -416,9 +418,16 @@ const OverviewPage: React.FC = () => {
                     type="button"
                     onClick={openProfile}
                     aria-label="Your account"
-                    className="ml-auto flex-none rounded-full focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
+                    className="ml-auto flex-none relative rounded-full focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                 >
                     <Avatar name={user?.full_name || ''} size={34} variant="accent" />
+                    <Badge
+                        count={pendingRequests}
+                        label={`${pendingRequests} friend request${
+                            pendingRequests === 1 ? '' : 's'
+                        } waiting`}
+                        className="absolute top-0 right-0"
+                    />
                 </button>
             </div>
 

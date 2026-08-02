@@ -8,9 +8,10 @@ import {
     SignOut,
     Sun,
 } from '@phosphor-icons/react';
-import { Avatar, Sheet } from './ui';
+import { Avatar, Badge, Sheet } from './ui';
 import { useAuth } from '../AuthContext';
 import { useTheme } from '../ThemeContext';
+import { useAppData } from '../contexts/AppDataContext';
 
 export interface ProfileSheetProps {
     open: boolean;
@@ -29,6 +30,7 @@ const ProfileSheet: React.FC<ProfileSheetProps> = ({ open, onClose }) => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
     const { isDark, toggleTheme } = useTheme();
+    const { pendingRequests } = useAppData();
 
     const go = (path: string) => () => {
         onClose();
@@ -52,7 +54,25 @@ const ProfileSheet: React.FC<ProfileSheetProps> = ({ open, onClose }) => {
 
             <button type="button" onClick={go('/account')} className={rowClass}>
                 <Gear size={18} className="text-sw-muted flex-none" />
-                <span className="flex-1">Account settings</span>
+                <span className="flex-1 min-w-0">
+                    <span className="block">Account settings</span>
+                    {pendingRequests > 0 && (
+                        <span className="block text-[12px] text-sw-accent">
+                            {pendingRequests === 1
+                                ? '1 friend request waiting'
+                                : `${pendingRequests} friend requests waiting`}
+                        </span>
+                    )}
+                </span>
+                <Badge
+                    count={pendingRequests}
+                    variant="count"
+                    ring="none"
+                    label={`${pendingRequests} friend request${
+                        pendingRequests === 1 ? '' : 's'
+                    } waiting`}
+                    className="flex-none"
+                />
                 <CaretRight size={16} className="text-sw-dim flex-none" />
             </button>
 

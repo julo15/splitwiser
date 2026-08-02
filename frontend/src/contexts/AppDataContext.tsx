@@ -18,6 +18,11 @@ interface AppData {
     balances: Balance[];
     loading: boolean;
     /**
+     * Incoming friend requests you haven't answered. The app has no push
+     * channel, so this is what the badge on the account entry points counts.
+     */
+    pendingRequests: number;
+    /**
      * false — each group in its own currency (the raw balances).
      * true  — everything converted to the user's default currency, which is the
      *         only mode where a single net total is meaningful.
@@ -30,7 +35,11 @@ interface AppData {
     refreshBalances: () => Promise<void>;
     refreshGroups: () => Promise<void>;
     refreshFriends: () => Promise<void>;
+    refreshPendingRequests: () => Promise<void>;
 }
+
+/** How often to re-check for things waiting on you, in milliseconds. */
+const PENDING_POLL_MS = 90_000;
 
 const AppDataContext = createContext<AppData | undefined>(undefined);
 
@@ -48,6 +57,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({
     const [friends, setFriends] = useState<Friend[]>([]);
     const [groups, setGroups] = useState<Group[]>([]);
     const [balances, setBalances] = useState<Balance[]>([]);
+    const [pendingRequests, setPendingRequests] = useState(0);
     const [loading, setLoading] = useState(true);
     // Default to the converted view: the redesign leads with a single net
     // figure, which only exists once everything is in one currency.
@@ -81,9 +91,25 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     }, [showInMyCurrency, displayCurrency]);
 
+    const refreshPendingRequests = useCallback(async () => {
+        try {
+            const { count } = await friendsApi.getPendingCount();
+            setPendingRequests(count ?? 0);
+        } catch (error) {
+            // A failed poll should leave the last known count alone, not
+            // silently clear a badge that is still earned.
+            console.error('Failed to fetch pending friend requests:', error);
+        }
+    }, []);
+
     const refreshAll = useCallback(async () => {
-        await Promise.all([refreshFriends(), refreshGroups(), refreshBalances()]);
-    }, [refreshFriends, refreshGroups, refreshBalances]);
+        await Promise.all([
+            refreshFriends(),
+            refreshGroups(),
+            refreshBalances(),
+            refreshPendingRequests(),
+        ]);
+    }, [refreshFriends, refreshGroups, refreshBalances, refreshPendingRequests]);
 
     useEffect(() => {
         if (!user) return;
@@ -108,11 +134,30 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [showInMyCurrency, displayCurrency]);
 
+    // There is no push channel, so the badge is kept honest by polling and by
+    // re-checking whenever the tab comes back to the foreground — which is when
+    // a stale count is most likely and most visible.
+    useEffect(() => {
+        if (!user) return;
+
+        const timer = window.setInterval(refreshPendingRequests, PENDING_POLL_MS);
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') refreshPendingRequests();
+        };
+        document.addEventListener('visibilitychange', onVisible);
+
+        return () => {
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
+    }, [user, refreshPendingRequests]);
+
     const value = useMemo(
         () => ({
             friends,
             groups,
             balances,
+            pendingRequests,
             loading,
             showInMyCurrency,
             setShowInMyCurrency,
@@ -121,11 +166,13 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({
             refreshBalances,
             refreshGroups,
             refreshFriends,
+            refreshPendingRequests,
         }),
         [
             friends,
             groups,
             balances,
+            pendingRequests,
             loading,
             showInMyCurrency,
             displayCurrency,
@@ -133,6 +180,7 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({
             refreshBalances,
             refreshGroups,
             refreshFriends,
+            refreshPendingRequests,
         ]
     );
 

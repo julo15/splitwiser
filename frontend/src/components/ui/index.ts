@@ -4,6 +4,7 @@
  * elevation, tinted marks rather than accent floods) are enforced in one place.
  */
 export { default as Avatar } from './Avatar';
+export { default as Badge } from './Badge';
 export { default as Button } from './Button';
 export { default as Card } from './Card';
 export { default as Field } from './Field';
@@ -17,6 +18,7 @@ export { default as StatTile } from './StatTile';
 export { default as TagPill } from './TagPill';
 
 export type { AvatarProps } from './Avatar';
+export type { BadgeProps } from './Badge';
 export type { ButtonProps, ButtonVariant } from './Button';
 export type { CardProps, CardTone } from './Card';
 export type { FieldProps } from './Field';

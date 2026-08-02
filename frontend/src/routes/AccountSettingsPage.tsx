@@ -4,6 +4,7 @@ import { Avatar, Button, Card, Field, Notice } from '../components/ui';
 import PageHeader from './PageHeader';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useCurrencyPreferences } from '../hooks/useCurrencyPreferences';
+import { useAppData } from '../contexts/AppDataContext';
 import { formatCurrencyDisplay } from '../utils/currencyHelpers';
 import { api } from '../services/api';
 
@@ -50,6 +51,8 @@ function formatDate(value: string | null): string {
 const AccountSettingsPage: React.FC = () => {
     usePageTitle('Account settings');
     const { sortedCurrencies } = useCurrencyPreferences();
+    // Answering a request here is what clears the badge in the shell.
+    const { refreshFriends, refreshPendingRequests } = useAppData();
 
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
@@ -102,6 +105,11 @@ const AccountSettingsPage: React.FC = () => {
     useEffect(() => {
         loadProfile();
         loadFriendRequests();
+        // The badge is polled, so it can be up to a poll stale by the time you
+        // arrive here. This is the one screen that shows the requests, so it
+        // should be the screen that gets the count right.
+        refreshPendingRequests();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleProfileUpdate = async (event: React.FormEvent) => {
@@ -223,6 +231,9 @@ const AccountSettingsPage: React.FC = () => {
             if (response.ok) {
                 setRequestFeedback({ tone: 'success', message: successMessage });
                 loadFriendRequests();
+                refreshPendingRequests();
+                // Accepting one adds a friend; the rest of the app should know.
+                refreshFriends();
             } else {
                 const detail = await response.json().catch(() => ({}));
                 setRequestFeedback({
