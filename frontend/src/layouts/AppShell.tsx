@@ -6,6 +6,7 @@ import FabSheet from './FabSheet';
 import type { ResumeTarget } from './FabSheet';
 import AddExpenseModal from '../AddExpenseModal';
 import ReceiptScanner from '../ReceiptScanner';
+import ProfileSheet from '../components/ProfileSheet';
 import { Button, Sheet } from '../components/ui';
 import { tabsApi } from '../services/api';
 import { useIsDesktop } from '../hooks/useMediaQuery';
@@ -27,6 +28,7 @@ const AppShell: React.FC = () => {
     const { friends, groups, balances, refreshAll } = useAppData();
 
     const [fabOpen, setFabOpen] = useState(false);
+    const [profileOpen, setProfileOpen] = useState(false);
     const [expenseModal, setExpenseModal] = useState<{
         open: boolean;
         scanner: boolean;
@@ -128,9 +130,10 @@ const AppShell: React.FC = () => {
         []
     );
     const openSettleUp = useCallback(() => navigate('/settle'), [navigate]);
+    const openProfile = useCallback(() => setProfileOpen(true), []);
     const shellActions = useMemo<ShellActions>(
-        () => ({ openAddExpense, openSettleUp }),
-        [openAddExpense, openSettleUp]
+        () => ({ openAddExpense, openSettleUp, openProfile }),
+        [openAddExpense, openSettleUp, openProfile]
     );
 
     const tabFlow = (
@@ -183,6 +186,8 @@ const AppShell: React.FC = () => {
             <Outlet context={shellActions} />
             {tabFlow}
 
+            <ProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
+
             <AddExpenseModal
                 isOpen={expenseModal.open}
                 openScanner={expenseModal.scanner}
@@ -201,6 +206,7 @@ const AppShell: React.FC = () => {
                     groupCount={groups.length}
                     peopleCount={friends.length}
                     pinned={pinned}
+                    onOpenProfile={openProfile}
                 />
                 <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
                     {content}

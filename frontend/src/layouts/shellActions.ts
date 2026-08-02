@@ -10,6 +10,8 @@ import { useOutletContext } from 'react-router-dom';
 export interface ShellActions {
     openAddExpense: () => void;
     openSettleUp: () => void;
+    /** Account, help, theme and sign-out. */
+    openProfile: () => void;
 }
 
 export function useShellActions(): ShellActions {

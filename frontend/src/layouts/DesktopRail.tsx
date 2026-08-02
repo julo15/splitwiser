@@ -26,6 +26,8 @@ export interface DesktopRailProps {
     groupCount?: number;
     peopleCount?: number;
     pinned?: PinnedGroup[];
+    /** Opens the account menu — help and sign-out live there too. */
+    onOpenProfile?: () => void;
 }
 
 interface NavDef {
@@ -46,6 +48,7 @@ const DesktopRail: React.FC<DesktopRailProps> = ({
     groupCount,
     peopleCount,
     pinned = [],
+    onOpenProfile,
 }) => {
     const { user } = useAuth();
     const { isDark, toggleTheme } = useTheme();
@@ -137,8 +140,15 @@ const DesktopRail: React.FC<DesktopRailProps> = ({
             <div className="mt-auto flex flex-col gap-2.5">
                 <div className="h-px bg-sw-line" aria-hidden="true" />
                 <div className="flex items-center gap-[9px] px-2 py-1">
-                    <Avatar name={user?.full_name || ''} variant="accent" size={26} />
-                    <div className="text-[13px] truncate">{user?.full_name}</div>
+                    <button
+                        type="button"
+                        onClick={onOpenProfile}
+                        aria-label="Your account"
+                        className="flex items-center gap-[9px] min-w-0 flex-1 text-left rounded hover:text-sw-text focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
+                    >
+                        <Avatar name={user?.full_name || ''} variant="accent" size={26} />
+                        <span className="text-[13px] truncate">{user?.full_name}</span>
+                    </button>
                     <div className="ml-auto flex gap-0.5 text-sw-dim flex-none">
                         <button
                             type="button"
@@ -150,7 +160,7 @@ const DesktopRail: React.FC<DesktopRailProps> = ({
                         </button>
                         <button
                             type="button"
-                            onClick={() => navigate('/account')}
+                            onClick={onOpenProfile}
                             aria-label="Account settings"
                             className="p-0.5 rounded hover:text-sw-text focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                         >

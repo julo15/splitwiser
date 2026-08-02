@@ -43,7 +43,7 @@ function timeOfDayGreeting(now = new Date()): string {
 const OverviewPage: React.FC = () => {
     usePageTitle('Overview');
     const navigate = useNavigate();
-    const { openAddExpense, openSettleUp } = useShellActions();
+    const { openAddExpense, openSettleUp, openProfile } = useShellActions();
     const isDesktop = useIsDesktop();
     const { user } = useAuth();
     const {
@@ -408,6 +408,18 @@ const OverviewPage: React.FC = () => {
                         Hey, {user?.full_name?.split(' ')[0] ?? 'there'}
                     </div>
                 </div>
+                {/*
+                  * The only route to account, help, theme and sign-out on
+                  * mobile: the tab bar's five slots are all destinations.
+                  */}
+                <button
+                    type="button"
+                    onClick={openProfile}
+                    aria-label="Your account"
+                    className="ml-auto flex-none rounded-full focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
+                >
+                    <Avatar name={user?.full_name || ''} size={34} variant="accent" />
+                </button>
             </div>
 
             <div className="flex-1 overflow-auto px-4 pb-4 flex flex-col gap-4">
