@@ -1,0 +1,151 @@
+import { describe, it, expect } from 'vitest';
+import { settlementForUser, settlementTotal } from '../settlement';
+import type { GroupTransactions } from '../settlement';
+
+const ME = 1;
+
+const tx = (from: number, to: number, amount: number, currency = 'USD') => ({
+    from_id: from,
+    from_is_guest: false,
+    to_id: to,
+    to_is_guest: false,
+    amount,
+    currency,
+});
+
+const group = (
+    groupId: number,
+    groupName: string,
+    transactions: GroupTransactions['transactions']
+): GroupTransactions => ({ groupId, groupName, transactions });
+
+describe('settlementForUser', () => {
+    it('reads a debt owed to me as positive', () => {
+        const result = settlementForUser(
+            [group(1, 'Tahoe', [tx(2, ME, 8420)])],
+            ME
+        );
+        expect(result).toHaveLength(1);
+        expect(result[0].amount).toBe(8420);
+        expect(result[0].userId).toBe(2);
+    });
+
+    it('reads a debt I owe as negative', () => {
+        const result = settlementForUser(
+            [group(1, 'Tahoe', [tx(ME, 4, 4215)])],
+            ME
+        );
+        expect(result[0].amount).toBe(-4215);
+        expect(result[0].userId).toBe(4);
+    });
+
+    it('ignores transactions between two other people', () => {
+        const result = settlementForUser(
+            [group(1, 'Tahoe', [tx(2, 3, 5000), tx(4, 3, 21628)])],
+            ME
+        );
+        expect(result).toEqual([]);
+    });
+
+    it('merges the same person across groups', () => {
+        const result = settlementForUser(
+            [
+                group(1, 'Tahoe', [tx(2, ME, 5000)]),
+                group(2, 'Lunch', [tx(2, ME, 3420)]),
+            ],
+            ME
+        );
+        expect(result).toHaveLength(1);
+        expect(result[0].amount).toBe(8420);
+        expect(result[0].groups).toEqual(['Tahoe', 'Lunch']);
+        // No single group identifies this figure any more.
+        expect(result[0].groupId).toBeUndefined();
+    });
+
+    it('nets opposing debts with the same person and drops them when settled', () => {
+        const result = settlementForUser(
+            [
+                group(1, 'Tahoe', [tx(2, ME, 5000)]),
+                group(2, 'Lunch', [tx(ME, 2, 5000)]),
+            ],
+            ME
+        );
+        expect(result).toEqual([]);
+    });
+
+    it('keeps a residual when opposing debts do not cancel', () => {
+        const result = settlementForUser(
+            [
+                group(1, 'Tahoe', [tx(2, ME, 5000)]),
+                group(2, 'Lunch', [tx(ME, 2, 2000)]),
+            ],
+            ME
+        );
+        expect(result[0].amount).toBe(3000);
+    });
+
+    it('keeps currencies separate', () => {
+        const result = settlementForUser(
+            [
+                group(1, 'Tahoe', [tx(2, ME, 5000, 'USD')]),
+                group(3, 'Lisbon', [tx(2, ME, 9800, 'EUR')]),
+            ],
+            ME
+        );
+        expect(result).toHaveLength(2);
+        expect(result.map((c) => c.currency).sort()).toEqual(['EUR', 'USD']);
+    });
+
+    it('treats the same guest id in different groups as different people', () => {
+        const guestTx = (groupCurrency = 'USD') => ({
+            from_id: 7,
+            from_is_guest: true,
+            to_id: ME,
+            to_is_guest: false,
+            amount: 1000,
+            currency: groupCurrency,
+        });
+        const result = settlementForUser(
+            [group(1, 'Tahoe', [guestTx()]), group(2, 'Lunch', [guestTx()])],
+            ME
+        );
+        expect(result).toHaveLength(2);
+    });
+
+    it('records the single source group when there is only one', () => {
+        const result = settlementForUser(
+            [group(7, 'Tahoe', [tx(2, ME, 5000)])],
+            ME
+        );
+        expect(result[0].groupId).toBe(7);
+        expect(result[0].groups).toEqual(['Tahoe']);
+    });
+});
+
+describe('settlementTotal', () => {
+    it('totals a single-currency set', () => {
+        const parties = settlementForUser(
+            [group(1, 'Tahoe', [tx(2, ME, 8420), tx(ME, 4, 4215)])],
+            ME
+        );
+        expect(settlementTotal(parties)).toEqual({
+            amount: 8420 - 4215,
+            currency: 'USD',
+        });
+    });
+
+    it('refuses to total across currencies', () => {
+        const parties = settlementForUser(
+            [
+                group(1, 'Tahoe', [tx(2, ME, 8420, 'USD')]),
+                group(3, 'Lisbon', [tx(5, ME, 9800, 'EUR')]),
+            ],
+            ME
+        );
+        expect(settlementTotal(parties)).toBeNull();
+    });
+
+    it('returns null for an empty set', () => {
+        expect(settlementTotal([])).toBeNull();
+    });
+});

@@ -49,7 +49,9 @@ export const AppDataProvider: React.FC<{ children: React.ReactNode }> = ({
     const [groups, setGroups] = useState<Group[]>([]);
     const [balances, setBalances] = useState<Balance[]>([]);
     const [loading, setLoading] = useState(true);
-    const [showInMyCurrency, setShowInMyCurrency] = useState(false);
+    // Default to the converted view: the redesign leads with a single net
+    // figure, which only exists once everything is in one currency.
+    const [showInMyCurrency, setShowInMyCurrency] = useState(true);
 
     const displayCurrency = user?.default_currency || 'USD';
 

@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Handshake } from '@phosphor-icons/react';
+import { Plus, Handshake, Lightning } from '@phosphor-icons/react';
 import {
+    Avatar,
     Button,
     Card,
     Money,
@@ -17,8 +18,9 @@ import { useShellActions } from '../layouts/shellActions';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useExpenseFeed } from '../hooks/useExpenseFeed';
 import { useExpenseLabels } from '../hooks/useExpenseLabels';
+import { useSettlement } from '../hooks/useSettlement';
 import { netForGroup } from '../utils/groupBalances';
-import { aggregatePeople, bucketPeople, bucketTotal } from '../utils/peopleBalances';
+import { settlementTotal } from '../utils/settlement';
 
 /** "Friday evening" — the greeting line above the mobile home header. */
 function timeOfDayGreeting(now = new Date()): string {
@@ -33,10 +35,9 @@ function timeOfDayGreeting(now = new Date()): string {
 /**
  * The landing screen, in both postures: the number first, then how to fix it.
  *
- * Not yet built, because the API cannot answer them today:
- *  - the "who owes who" matrix (needs pairwise debts, not per-person balances)
- *  - "clear it in N payments" (simplification is per-group; this needs a global
- *    endpoint)
+ * Two cards from the mockup are not built, because the API cannot answer them:
+ *  - the "who owes who" matrix (needs full pairwise debts between every pair of
+ *    members, not just the ones involving the current user)
  *  - "where the money went" (needs 30-day spend per group in one call)
  */
 const OverviewPage: React.FC = () => {
@@ -47,6 +48,7 @@ const OverviewPage: React.FC = () => {
     const { user } = useAuth();
     const {
         groups,
+        friends,
         balances,
         showInMyCurrency,
         setShowInMyCurrency,
@@ -55,12 +57,23 @@ const OverviewPage: React.FC = () => {
     const { expenses, loading } = useExpenseFeed();
     const { payerName, groupName } = useExpenseLabels();
 
-    const buckets = useMemo(
-        () => bucketPeople(aggregatePeople(balances)),
-        [balances]
+    const { counterparties } = useSettlement();
+
+    const friendName = useMemo(() => {
+        const names = new Map(friends.map((f) => [f.id, f.full_name]));
+        return (id: number) => names.get(id);
+    }, [friends]);
+
+    const owedBy = useMemo(
+        () => counterparties.filter((c) => c.amount > 0),
+        [counterparties]
     );
-    const owedTotal = useMemo(() => bucketTotal(buckets.owed), [buckets.owed]);
-    const owingTotal = useMemo(() => bucketTotal(buckets.owing), [buckets.owing]);
+    const owedTo = useMemo(
+        () => counterparties.filter((c) => c.amount < 0),
+        [counterparties]
+    );
+    const owedTotal = useMemo(() => settlementTotal(owedBy), [owedBy]);
+    const owingTotal = useMemo(() => settlementTotal(owedTo), [owedTo]);
 
     /**
      * A single net figure only means something once everything is in one
@@ -85,7 +98,9 @@ const OverviewPage: React.FC = () => {
         [groups, balances]
     );
 
-    const recent = expenses.slice(0, 4);
+    // The desktop card sits in a full-height column beside the settlement list,
+    // so it has room for more of the feed than the mobile section does.
+    const recent = expenses.slice(0, isDesktop ? 8 : 4);
 
     const currencyToggle = (
         <SegmentedControl
@@ -140,6 +155,73 @@ const OverviewPage: React.FC = () => {
                         />
                     ))
                 )}
+            </div>
+        </Card>
+    );
+
+    /**
+     * "Clear it in N payments" — the simplified settlement, straight from the
+     * per-group debt simplification.
+     */
+    const settleCard = counterparties.length > 0 && (
+        <Card className="px-[18px] py-4">
+            <div className="flex items-center gap-2">
+                <Lightning size={16} className="text-sw-accent" />
+                <div className="text-[15px] font-medium">
+                    Clear it in {counterparties.length}{' '}
+                    {counterparties.length === 1 ? 'payment' : 'payments'}
+                </div>
+            </div>
+            <div className="text-[12.5px] text-sw-muted mt-1 mb-3">
+                Simplified across your groups.
+            </div>
+
+            <div className="flex flex-col gap-2">
+                {counterparties.map((counterparty) => {
+                    const theyPayYou = counterparty.amount > 0;
+                    const name = counterparty.isGuest
+                        ? `Guest ${counterparty.userId}`
+                        : (friendName(counterparty.userId) ?? `Person ${counterparty.userId}`);
+
+                    return (
+                        <div
+                            key={counterparty.key}
+                            className="bg-sw-sunk rounded-sw-row px-[13px] py-3 flex items-center gap-[11px]"
+                        >
+                            <Avatar
+                                name={theyPayYou ? name : (user?.full_name ?? 'You')}
+                                size={28}
+                                variant={theyPayYou ? 'accent' : 'neutral'}
+                            />
+                            <div className="flex-1 min-w-0">
+                                <div className="text-[13px] truncate">
+                                    {theyPayYou ? (
+                                        <>
+                                            <span className="font-medium">{name}</span> pays you
+                                        </>
+                                    ) : (
+                                        <>
+                                            You pay <span className="font-medium">{name}</span>
+                                        </>
+                                    )}
+                                </div>
+                                <Money
+                                    amount={Math.abs(counterparty.amount)}
+                                    currency={counterparty.currency}
+                                    tone={theyPayYou ? 'positive' : 'negative'}
+                                    className="text-base font-medium"
+                                />
+                            </div>
+                            <Button
+                                variant="secondary"
+                                onClick={openSettleUp}
+                                className="text-[12.5px] flex-none"
+                            >
+                                Settle
+                            </Button>
+                        </div>
+                    );
+                })}
             </div>
         </Card>
     );
@@ -247,10 +329,10 @@ const OverviewPage: React.FC = () => {
                                 )
                             }
                             caption={
-                                buckets.owed.length === 0
+                                owedBy.length === 0
                                     ? 'Nobody owes you right now'
-                                    : `from ${buckets.owed.length} ${
-                                          buckets.owed.length === 1 ? 'person' : 'people'
+                                    : `from ${owedBy.length} ${
+                                          owedBy.length === 1 ? 'person' : 'people'
                                       }`
                             }
                         />
@@ -268,10 +350,10 @@ const OverviewPage: React.FC = () => {
                                 )
                             }
                             caption={
-                                buckets.owing.length === 0
+                                owedTo.length === 0
                                     ? "You're all clear"
-                                    : `to ${buckets.owing.length} ${
-                                          buckets.owing.length === 1 ? 'person' : 'people'
+                                    : `to ${owedTo.length} ${
+                                          owedTo.length === 1 ? 'person' : 'people'
                                       }`
                             }
                         />
@@ -307,6 +389,7 @@ const OverviewPage: React.FC = () => {
                             {latelyCard}
                         </div>
                         <div className="flex flex-col gap-[18px] min-w-0">
+                            {settleCard}
                             {groupsStrip}
                         </div>
                     </div>
@@ -387,7 +470,7 @@ const OverviewPage: React.FC = () => {
                         />
                     </div>
 
-                    {buckets.owing.length + buckets.owed.length > 0 && (
+                    {owedTo.length + owedBy.length > 0 && (
                         <Button
                             variant="primary"
                             block
