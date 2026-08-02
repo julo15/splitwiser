@@ -113,6 +113,7 @@ Backend (pytest, in-memory SQLite — no external services are contacted):
 ```bash
 cd backend
 source venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt  # test deps are in requirements-dev.txt
 pytest tests/                              # Run the whole suite
 pytest tests/test_expenses.py              # Run one file
 pytest tests/test_main.py::test_create_user -v  # Run a single test
@@ -143,6 +144,10 @@ Conventions:
   later tests as the wrong user.
 - Outbound calls (Frankfurter exchange rates, Brevo email, LLM receipt
   scanning) are mocked; the suite runs offline.
+
+CI: `.github/workflows/tests.yml` runs both suites on every pull request
+targeting `main` and on every push to `main`, as two parallel jobs
+(Python 3.11 / Node 20, matching the production image).
 
 ### Database Migrations
 When schema changes are made, update the SQLite database:
