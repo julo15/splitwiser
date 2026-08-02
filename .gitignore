@@ -21,5 +21,9 @@ secrets/
 htmlcov/
 .claude/
 .agents/reviews/
-data/
+# The backend's receipt store. Anchored with a leading slash: a bare `data/`
+# matches at any depth, and silently swallowed frontend/src/data/ — the app
+# built locally and failed in Docker because the file was never committed.
+/data/
+backend/data/
 credentials.json
