@@ -1,24 +1,23 @@
+
 import pytest
-from unittest.mock import Mock, patch
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from fastapi.testclient import TestClient
 
-from main import app
-
+from auth import create_access_token, get_password_hash
 from database import Base, get_db
+from main import app
 from models import User
-from auth import get_password_hash, create_access_token
 
 # Import rate limiters to override them
 from utils.rate_limiter import (
     auth_rate_limiter,
+    email_verification_rate_limiter,
     ocr_rate_limiter,
     password_reset_rate_limiter,
-    email_verification_rate_limiter,
     profile_update_rate_limiter,
-    summary_rate_limiter
+    summary_rate_limiter,
 )
 
 # Setup in-memory SQLite database for testing

@@ -7,16 +7,16 @@ parser behavior without making actual API calls.
 
 from dataclasses import dataclass
 from typing import List
+
 from parser import parse_receipt_items
 from parser_v2 import (
-    parse_receipt_items_v2,
-    extract_price_from_text,
     clean_description,
-    should_filter_item,
-    detect_receipt_total,
-    detect_receipt_tax,
     detect_receipt_subtotal,
-    parse_receipt_with_validation
+    detect_receipt_tax,
+    detect_receipt_total,
+    extract_price_from_text,
+    parse_receipt_items_v2,
+    should_filter_item,
 )
 
 
@@ -288,7 +288,7 @@ def run_comparison_test():
             print(f"  - {item['description']}: ${item['price']/100:.2f}")
 
         # Analysis
-        print(f"\n📊 Analysis:")
+        print("\n📊 Analysis:")
         print(f"  Expected: {expected_count} items")
         print(f"  Old Parser: {len(items_old)} items ({'✅ PASS' if len(items_old) == expected_count else '❌ FAIL'})")
         print(f"  New Parser: {len(items_v2)} items ({'✅ PASS' if len(items_v2) == expected_count else '❌ FAIL'})")
@@ -298,7 +298,7 @@ def run_comparison_test():
         elif len(items_old) > len(items_v2):
             print(f"  ⚠️  Old parser found {len(items_old) - len(items_v2)} more items")
         else:
-            print(f"  ℹ️  Both parsers found same number of items")
+            print("  ℹ️  Both parsers found same number of items")
 
     print("\n" + "=" * 80)
 

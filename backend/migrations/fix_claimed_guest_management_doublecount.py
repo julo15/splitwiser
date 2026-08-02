@@ -12,8 +12,9 @@ Fix: Clear managed_by fields for all claimed guests, since the relationship has 
 transferred to the GroupMember record when the guest was claimed.
 """
 
-from database import SessionLocal
 import models
+from database import SessionLocal
+
 
 def main():
     db = SessionLocal()

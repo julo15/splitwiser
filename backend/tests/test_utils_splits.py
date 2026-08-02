@@ -9,11 +9,10 @@ import pytest
 
 import schemas
 from utils.splits import (
-    get_assignment_key,
     calculate_itemized_splits,
     calculate_itemized_splits_with_expense_guests,
+    get_assignment_key,
 )
-
 
 # --- helpers ---------------------------------------------------------------
 
@@ -480,7 +479,7 @@ class TestCalculateItemizedSplitsWithExpenseGuests:
         assert total == 900
 
     def test_single_assignee_expense_guest_takes_the_whole_price(self):
-        splits, guest_amounts = calculate_itemized_splits_with_expense_guests([
+        _, guest_amounts = calculate_itemized_splits_with_expense_guests([
             item(
                 1999,
                 [temp_guest("tmp-1")],

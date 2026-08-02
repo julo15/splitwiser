@@ -12,16 +12,15 @@ import models
 import schemas
 from auth import get_password_hash
 from utils.validation import (
-    get_user_by_email,
     get_group_or_404,
-    verify_group_membership,
-    verify_group_ownership,
+    get_user_by_email,
     is_friend,
     is_group_member,
     validate_expense_participants,
     validate_item_split_details,
+    verify_group_membership,
+    verify_group_ownership,
 )
-
 
 # --- fixtures --------------------------------------------------------------
 

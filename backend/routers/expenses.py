@@ -1,9 +1,10 @@
 """Expenses router: create, read, update, delete expenses."""
 
-from typing import Annotated
-import os
 import json
+import os
 from datetime import date, datetime, timedelta
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -11,12 +12,15 @@ import models
 import schemas
 from database import get_db
 from dependencies import get_current_user
-from utils.validation import get_group_or_404, verify_group_membership, validate_expense_participants, validate_item_split_details
-from utils.splits import calculate_itemized_splits, calculate_itemized_splits_with_expense_guests
-from utils.currency import get_exchange_rate_for_expense, fetch_historical_exchange_rate
-from utils.display import get_guest_display_name
+from utils.currency import fetch_historical_exchange_rate, get_exchange_rate_for_expense
 from utils.dates import normalize_date
-
+from utils.splits import calculate_itemized_splits, calculate_itemized_splits_with_expense_guests
+from utils.validation import (
+    get_group_or_404,
+    validate_expense_participants,
+    validate_item_split_details,
+    verify_group_membership,
+)
 
 # Receipt directory path (must match main.py)
 DATA_DIR = os.getenv("DATA_DIR", "data")

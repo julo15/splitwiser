@@ -7,8 +7,7 @@ the manager links used to aggregate balances onto another person.
 import pytest
 
 import models
-from auth import get_password_hash, create_access_token
-
+from auth import create_access_token, get_password_hash
 
 # --- helpers ---------------------------------------------------------------
 

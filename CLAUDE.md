@@ -164,16 +164,41 @@ Those plus `react-hooks/exhaustive-deps` make up the 19 accepted warnings.
 `lint:ci` caps the count so the backlog cannot grow; lower the ceiling in
 `package.json` as warnings are worked off.
 
+### Backend static analysis
+
+```bash
+cd backend
+source venv/bin/activate
+ruff check .            # lint (config: backend/ruff.toml)
+ruff check . --fix      # apply safe autofixes
+pip-audit -r requirements.txt -r requirements-dev.txt  # dependency CVEs
+```
+
+Ruff runs a deliberately scoped starter set (`E4/E7/E9`, `F`, `I`, `B`,
+`RUF`) that the codebase holds at zero. `SIM` and `UP` are the natural next
+additions — see the comments in `ruff.toml` for what enabling them costs.
+Three ignores are framework requirements rather than style preferences, most
+importantly `E711`/`E712`: SQLAlchemy compiles `== None` / `== False` into
+SQL, and rewriting them to `is None` / `is False` silently breaks the query.
+
+`pip-audit` currently ignores PYSEC-2026-1325 in `ecdsa` (pulled in by
+python-jose). Upstream ships no fix, and it is unreachable here because JWTs
+use HS256 only — revisit if `auth.ALGORITHM` ever becomes an EC curve. The
+reasoning is recorded in `.github/workflows/audit.yml`.
+
 ### Continuous integration
 
 CI runs on Python 3.11 / Node 20, matching the production image:
 - `.github/workflows/_tests.yml` — the reusable check definition (backend
-  tests, frontend tests, frontend lint). Edit this to change how the checks
-  run; it is never triggered on its own.
+  tests, backend ruff, frontend tests, frontend eslint). Edit this to change
+  how the checks run; it is never triggered on its own.
 - `.github/workflows/tests.yml` — calls it for pull requests into `main`.
 - `.github/workflows/deploy.yml` — calls it as a gate before deploying to
   Fly.io, so a push to `main` (or a manual deploy of another branch) only
-  ships when all three checks pass on that exact ref.
+  ships when all four checks pass on that exact ref.
+- `.github/workflows/audit.yml` — `pip-audit`, on dependency-file changes and
+  weekly. Kept out of the deploy gate on purpose: a CVE disclosed upstream
+  should not block an unrelated hotfix from shipping.
 
 ### Database Migrations
 When schema changes are made, update the SQLite database:

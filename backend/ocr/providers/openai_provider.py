@@ -6,8 +6,7 @@ import os
 
 from openai import OpenAI
 
-from ocr.llm_service import SYSTEM_PROMPT, RESPONSE_SCHEMA
-
+from ocr.llm_service import RESPONSE_SCHEMA, SYSTEM_PROMPT
 
 # OpenAI structured output format wraps the schema
 _OPENAI_RESPONSE_FORMAT = {

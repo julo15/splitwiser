@@ -5,9 +5,9 @@ whether an account exists) and the token-based reset. Brevo is stubbed out.
 """
 
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, patch
 
 import auth
 import models

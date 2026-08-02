@@ -5,20 +5,21 @@ network. The rate cache is reset around every test so ordering can't leak
 state between cases.
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 from utils import currency
 from utils.currency import (
-    EXCHANGE_RATES,
     CURRENCY_SYMBOLS,
+    EXCHANGE_RATES,
     VALID_CURRENCIES,
-    format_currency,
-    fetch_historical_exchange_rate,
-    get_exchange_rate_for_expense,
-    convert_to_usd,
     convert_currency,
+    convert_to_usd,
+    fetch_historical_exchange_rate,
+    format_currency,
     get_current_exchange_rates,
+    get_exchange_rate_for_expense,
 )
 
 

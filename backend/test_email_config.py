@@ -4,21 +4,14 @@ Test email configuration for Splitwiser
 Usage: python test_email_config.py
 """
 
+import asyncio
 import os
 import sys
-import asyncio
 
 # Add backend to path
 sys.path.insert(0, os.path.dirname(__file__))
 
-from utils.email import (
-    is_email_configured,
-    send_email,
-    BREVO_API_KEY,
-    FROM_EMAIL,
-    FROM_NAME,
-    FRONTEND_URL
-)
+from utils.email import BREVO_API_KEY, FROM_EMAIL, FROM_NAME, FRONTEND_URL, is_email_configured, send_email
 
 
 def print_config():

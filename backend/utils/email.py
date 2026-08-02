@@ -1,9 +1,9 @@
 """Email service using Brevo API for Splitwiser"""
 
-import os
 import logging
+import os
+
 import requests
-from typing import Optional
 
 # Configure logging
 logger = logging.getLogger(__name__)

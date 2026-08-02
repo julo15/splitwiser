@@ -1,8 +1,9 @@
 
-import pytest
 from sqlalchemy import event
-from models import Group, GuestMember, Expense, ExpenseSplit, User, GroupMember, ExpenseItem, ExpenseItemAssignment
+
 from auth import get_password_hash
+from models import Expense, ExpenseItem, ExpenseItemAssignment, ExpenseSplit, Group, GroupMember, GuestMember, User
+
 
 def test_get_expense_itemized_n_plus_one(client, db_session, auth_headers, test_user):
     """

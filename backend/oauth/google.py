@@ -1,9 +1,10 @@
 """Google OAuth 2.0 utilities for token verification and user info extraction."""
 
 import os
-from typing import Dict, Any
-from google.oauth2 import id_token
+from typing import Any, Dict
+
 from google.auth.transport import requests
+from google.oauth2 import id_token
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
@@ -53,4 +54,4 @@ def verify_google_token(token: str) -> Dict[str, Any]:
         }
 
     except ValueError as e:
-        raise GoogleOAuthError(f"Token verification failed: {str(e)}")
+        raise GoogleOAuthError(f"Token verification failed: {e!s}") from e

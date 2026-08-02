@@ -1,0 +1,51 @@
+name: Dependency audit
+
+# Deliberately separate from tests.yml/_tests.yml, and so not part of the
+# deploy gate: a CVE published upstream can turn this red without anything in
+# the repository changing, and that should not block an unrelated hotfix from
+# shipping. The weekly run is what catches newly-disclosed advisories, since
+# a repo with no commits would otherwise never re-check.
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'backend/requirements*.txt'
+      - '.github/workflows/audit.yml'
+  schedule:
+    # Mondays, 09:00 UTC.
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  pip-audit:
+    name: Python dependencies (pip-audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      # PYSEC-2026-1325 (CVE-2024-23342) is a Minerva timing attack on ECDSA
+      # P-256 in the `ecdsa` package, pulled in transitively by python-jose.
+      # Upstream considers side-channel attacks out of scope and ships no fix,
+      # so there is no version to upgrade to. It is not reachable here: this
+      # app signs and verifies JWTs with HS256 only (see backend/auth.py), and
+      # the advisory covers ECDSA signing, key generation and ECDH. Re-check
+      # this if the JWT algorithm ever changes to an EC curve.
+      - name: Audit Python dependencies
+        working-directory: backend
+        run: |
+          pip-audit \
+            -r requirements.txt \
+            -r requirements-dev.txt \
+            --ignore-vuln PYSEC-2026-1325 \
+            --progress-spinner off

@@ -49,6 +49,33 @@ jobs:
         working-directory: backend
         run: pytest tests/ -v --cov=. --cov-report=term-missing
 
+  backend-lint:
+    name: Backend (ruff)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install Ruff
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+
+      - name: Run Ruff
+        working-directory: backend
+        run: ruff check .
+
   lint:
     name: Frontend (eslint)
     runs-on: ubuntu-latest

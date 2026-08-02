@@ -1,22 +1,32 @@
 """Friends router: manage friend relationships."""
 
-from typing import Annotated
-from collections import defaultdict
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
 import asyncio
+from collections import defaultdict
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import and_, or_
+from sqlalchemy.orm import Session
 
 import models
 import schemas
 from database import get_db
 from dependencies import get_current_user
-from utils.validation import get_user_by_email
-from utils.display import get_guest_display_name
 from utils.email import send_friend_request_email
-
+from utils.validation import get_user_by_email
 
 router = APIRouter(prefix="/friends", tags=["friends"])
+
+# Strong references to in-flight background notifications. The event loop only
+# holds a weak reference to a task, so without this the friend-request email
+# can be garbage-collected before it is sent.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _run_in_background(coro) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 def verify_friendship(db: Session, current_user_id: int, friend_id: int) -> models.User:
@@ -155,7 +165,7 @@ async def send_friend_request(
     db.refresh(new_request)
 
     # Send email notification (async, don't wait for result to avoid blocking)
-    asyncio.create_task(
+    _run_in_background(
         send_friend_request_email(
             target_user.email,
             target_user.full_name or target_user.email,
@@ -480,7 +490,7 @@ def get_friend_expenses(
     Includes both group expenses and direct (non-group) expenses.
     Also includes expenses where managed members/guests are involved.
     """
-    friend = verify_friendship(db, current_user.id, friend_id)
+    verify_friendship(db, current_user.id, friend_id)
     
     # Use helper to get ID sets with managed members consolidated
     current_user_ids, friend_ids_set, _ = get_friend_expense_context(
@@ -745,7 +755,7 @@ def get_friend_balance(
     
     Includes balances from managed members/guests in shared groups.
     """
-    friend = verify_friendship(db, current_user.id, friend_id)
+    verify_friendship(db, current_user.id, friend_id)
     
     # Use helper to get ID sets with managed members consolidated
     current_user_ids, friend_ids, _ = get_friend_expense_context(

@@ -2,14 +2,15 @@
 """
 Show all members and their relationships
 """
-import sys
-import os
 import argparse
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from database import Base
+
 import models
 
 # Parse arguments

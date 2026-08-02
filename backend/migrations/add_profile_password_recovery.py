@@ -13,10 +13,10 @@ Options:
     --db-path       Path to SQLite database (default: db.sqlite3)
 """
 
-import sqlite3
-import os
-import sys
 import argparse
+import os
+import sqlite3
+import sys
 from pathlib import Path
 
 
@@ -238,7 +238,7 @@ def run_migration(db_path, dry_run=False):
         except Exception as e:
             # Rollback on error
             conn.rollback()
-            raise MigrationError(f"Migration failed and was rolled back: {str(e)}")
+            raise MigrationError(f"Migration failed and was rolled back: {e!s}") from e
 
     finally:
         cursor.close()

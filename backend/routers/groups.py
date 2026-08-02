@@ -2,6 +2,7 @@
 
 import json
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
@@ -9,13 +10,12 @@ import models
 import schemas
 from database import get_db
 from dependencies import get_current_user
-from utils.validation import get_group_or_404, verify_group_membership, verify_group_ownership
-from utils.display import get_guest_display_name, get_public_user_display_name
+from utils import summary_cache
 from utils.currency import fetch_historical_exchange_rate
+from utils.display import get_guest_display_name, get_public_user_display_name
 from utils.rate_limiter import summary_rate_limiter
 from utils.summary import calculate_consumption_summary
-from utils import summary_cache
-
+from utils.validation import get_group_or_404, verify_group_membership, verify_group_ownership
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -769,7 +769,9 @@ def get_public_group_balances(
 
             del net_balances[member_key]
 
-    from utils.currency import format_currency  # Import here to avoid circular dependencies if any, though likely fine at top
+    from utils.currency import (
+        format_currency,  # Import here to avoid circular dependencies if any, though likely fine at top
+    )
 
     # Batch fetch remaining participants (Users and GuestMembers)
     user_ids_to_fetch = set()

@@ -1,23 +1,23 @@
 """Profile management router: get profile, update profile, change password, verify email."""
 
-from typing import Annotated
 from datetime import datetime
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+import auth
 import models
 import schemas
-import auth
 from database import get_db
 from dependencies import get_current_user
-from utils.rate_limiter import profile_update_rate_limiter, email_verification_rate_limiter
 from utils.email import (
-    send_email_verification_email,
+    is_email_configured,
     send_email_change_notification,
+    send_email_verification_email,
     send_password_changed_notification,
-    is_email_configured
 )
-
+from utils.rate_limiter import email_verification_rate_limiter, profile_update_rate_limiter
 
 router = APIRouter(tags=["profile"])
 

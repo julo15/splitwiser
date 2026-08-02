@@ -5,9 +5,9 @@ Migration script to add expense_guests table and related columns.
 This adds support for ad-hoc expense guests in non-group expenses.
 """
 
+import os
 import sqlite3
 import sys
-import os
 
 # Get the database path from environment or use default
 DATA_DIR = os.getenv("DATA_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

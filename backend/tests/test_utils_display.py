@@ -5,10 +5,10 @@ import pytest
 import models
 from auth import get_password_hash
 from utils.display import (
-    mask_email,
-    get_public_user_display_name,
     get_guest_display_name,
     get_participant_display_name,
+    get_public_user_display_name,
+    mask_email,
 )
 
 
