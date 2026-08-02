@@ -104,6 +104,37 @@ jobs:
         working-directory: frontend
         run: npm run lint:ci
 
+  # `npm run test` and `npm run lint:ci` never invoke tsc, so a type error —
+  # or an import of a file that was never committed — passed every check here
+  # and only surfaced in the Dockerfile's `npm run build` at deploy time. This
+  # runs the same build CI would otherwise never see.
+  frontend-build:
+    name: Frontend (build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Matches the production build stage (Dockerfile.fly).
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # tsc -b && vite build — the same command the Docker image runs.
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
   frontend:
     name: Frontend (vitest)
     runs-on: ubuntu-latest
