@@ -1,9 +1,10 @@
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from models import Group, GuestMember, User, GroupMember
+
 from auth import create_access_token
+from models import Group, GroupMember, GuestMember, User
+
 
 def test_claim_guest_requires_membership(client: TestClient, db_session: Session):
     """

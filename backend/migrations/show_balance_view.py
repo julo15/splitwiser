@@ -2,14 +2,15 @@
 """
 Show what the balance view would display for managed relationships
 """
-import sys
-import os
 import argparse
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from database import Base
+
 import models
 
 # Parse arguments
@@ -68,7 +69,7 @@ for group in groups:
             else:
                 manager_display = f"Guest {guest.managed_by_id} (Unknown)"
 
-        print(f"\n  Balance View Display:")
+        print("\n  Balance View Display:")
         print(f"    Balance tracked under: {balance_key}")
         print(f"    Aggregated with: {manager_display}")
 

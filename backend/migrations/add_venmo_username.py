@@ -11,9 +11,9 @@ Usage:
 """
 
 import argparse
+import os
 import sqlite3
 import sys
-import os
 from pathlib import Path
 
 DEFAULT_DB_PATH = Path(__file__).parent.parent / "db.sqlite3"

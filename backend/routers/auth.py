@@ -1,19 +1,19 @@
 """Authentication router: login, register, refresh token, logout."""
 
+from datetime import datetime, timedelta
 from typing import Annotated
-from datetime import timedelta, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
+import auth
 import models
 import schemas
-import auth
 from database import get_db
 from dependencies import get_current_user
-from utils.validation import get_user_by_email
 from utils.rate_limiter import auth_rate_limiter
-
+from utils.validation import get_user_by_email
 
 router = APIRouter(tags=["auth"])
 
@@ -166,7 +166,7 @@ def register_user(
     except Exception as e:
         db.rollback()
         print(f"Registration failed, rolling back: {e}")
-        raise HTTPException(status_code=500, detail="Registration failed. Please try again.")
+        raise HTTPException(status_code=500, detail="Registration failed. Please try again.") from e
 
 
 @router.post("/token", dependencies=[Depends(auth_rate_limiter)])

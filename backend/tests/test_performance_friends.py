@@ -1,13 +1,13 @@
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
 
-from main import app
 from database import Base, get_db
-from models import User, Expense, ExpenseSplit, Friendship
 from dependencies import get_current_user
+from main import app
+from models import Expense, ExpenseSplit, Friendship, User
 
 # Setup in-memory DB for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"

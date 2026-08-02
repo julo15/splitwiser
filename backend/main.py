@@ -7,7 +7,9 @@ This module sets up the app and mounts routers - all endpoint logic is in router
 
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
+
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,8 +19,20 @@ import models
 from database import engine
 
 # Import routers
-from routers import auth, groups, members, expenses, balances, friends, ocr, profile, password_recovery, oauth, summary, tabs
-
+from routers import (
+    auth,
+    balances,
+    expenses,
+    friends,
+    groups,
+    members,
+    oauth,
+    ocr,
+    password_recovery,
+    profile,
+    summary,
+    tabs,
+)
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)

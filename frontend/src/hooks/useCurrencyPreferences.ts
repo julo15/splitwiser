@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { CURRENCIES } from '../utils/currencyHelpers';
 import type { CurrencyInfo } from '../utils/currencyHelpers';
 
@@ -14,26 +14,27 @@ interface RecentCurrency {
  * Custom hook for managing currency preferences with localStorage
  * Returns currencies sorted by: recent first, then alphabetical
  */
-export function useCurrencyPreferences() {
-    const [recentCodes, setRecentCodes] = useState<string[]>([]);
+/** Read the most recently used currency codes from localStorage. */
+function loadRecentCodes(): string[] {
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (!stored) return [];
+        const recent: RecentCurrency[] = JSON.parse(stored);
+        // Sort by lastUsed descending and take top MAX_RECENT
+        return recent
+            .sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime())
+            .slice(0, MAX_RECENT)
+            .map(r => r.code);
+    } catch (error) {
+        console.error('Failed to load recent currencies:', error);
+        return [];
+    }
+}
 
-    // Load recent currencies from localStorage on mount
-    useEffect(() => {
-        try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) {
-                const recent: RecentCurrency[] = JSON.parse(stored);
-                // Sort by lastUsed descending and take top MAX_RECENT
-                const sorted = recent
-                    .sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime())
-                    .slice(0, MAX_RECENT)
-                    .map(r => r.code);
-                setRecentCodes(sorted);
-            }
-        } catch (error) {
-            console.error('Failed to load recent currencies:', error);
-        }
-    }, []);
+export function useCurrencyPreferences() {
+    // Read synchronously on first render rather than setting state from an
+    // effect, which would render once with an empty list and then again.
+    const [recentCodes, setRecentCodes] = useState<string[]>(loadRecentCodes);
 
     /**
      * Record currency usage - call this when user submits a form with a currency

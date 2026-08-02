@@ -3,6 +3,7 @@
  */
 
 import { API_BASE_URL } from '../config';
+import type { ExpensePayload } from '../types/expense';
 
 /**
  * Get the authentication token from localStorage
@@ -411,7 +412,7 @@ export const expensesApi = {
         return response.json();
     },
 
-    create: async (expenseData: any) => {
+    create: async (expenseData: ExpensePayload) => {
         const response = await apiFetch('/expenses', {
             method: 'POST',
             body: JSON.stringify(expenseData),
@@ -419,7 +420,7 @@ export const expensesApi = {
         return response;
     },
 
-    update: async (expenseId: number, expenseData: any) => {
+    update: async (expenseId: number, expenseData: ExpensePayload) => {
         const response = await apiFetch(`/expenses/${expenseId}`, {
             method: 'PUT',
             body: JSON.stringify(expenseData),
@@ -661,7 +662,7 @@ export const profileApi = {
             const error = await response.json();
             // Handle FastAPI validation error array
             const errorMessage = Array.isArray(error.detail)
-                ? error.detail.map((e: any) => e.msg).join(', ')
+                ? error.detail.map((e: { msg: string }) => e.msg).join(', ')
                 : (error.detail || 'Failed to change password');
             throw new Error(errorMessage);
         }

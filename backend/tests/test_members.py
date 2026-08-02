@@ -1,6 +1,7 @@
 from auth import get_password_hash
 from models import User
 
+
 def test_add_registered_member(client, auth_headers, db_session):
     # Create another user to add
     other_user = User(

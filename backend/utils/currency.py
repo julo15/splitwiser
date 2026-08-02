@@ -1,8 +1,8 @@
 """Currency-related utilities: exchange rates, formatting, and conversion."""
 
 from typing import Optional
-import requests
 
+import requests
 
 # Exchange rates for currency conversion (fallback if API fails)
 EXCHANGE_RATES = {

@@ -1,6 +1,5 @@
-import pytest
-from conftest import client, db_session
 import models
+
 
 def test_create_user(client):
     response = client.post(

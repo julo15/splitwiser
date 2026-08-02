@@ -97,12 +97,17 @@ const SettleUpPage: React.FC = () => {
      * so it cancels the existing debt.
      */
     const markPaid = async (payment: SuggestedPayment) => {
+        // One side of every settlement is the signed-in user, so without an id
+        // there is nothing to record. Guarded here so the payload stays fully
+        // typed rather than smuggling an undefined into payer_id.
+        if (!user?.id) return;
+
         setRecording(payment.key);
         setError(null);
 
-        const payerId = payment.iPay ? user?.id : payment.userId;
+        const payerId = payment.iPay ? user.id : payment.userId;
         const payerIsGuest = payment.iPay ? false : payment.isGuest;
-        const payeeId = payment.iPay ? payment.userId : user?.id;
+        const payeeId = payment.iPay ? payment.userId : user.id;
         const payeeIsGuest = payment.iPay ? payment.isGuest : false;
         const other = nameFor(payment);
 

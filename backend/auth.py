@@ -1,11 +1,12 @@
+import hashlib
 import os
+import secrets
 import sys
 from datetime import datetime, timedelta
 from typing import Optional
-from jose import JWTError, jwt
+
 import bcrypt
-import secrets
-import hashlib
+from jose import jwt
 
 SECRET_KEY = os.environ.get("SECRET_KEY")
 SPLITWISER_ENV = os.environ.get("SPLITWISER_ENV", "development")

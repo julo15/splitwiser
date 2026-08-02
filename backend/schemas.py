@@ -1,8 +1,8 @@
 import re
-
-from pydantic import BaseModel, EmailStr, field_validator, Field
-from typing import Optional, Dict, List, Literal
 from datetime import datetime
+from typing import Dict, List, Literal, Optional
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from utils.currency import VALID_CURRENCIES
 
@@ -31,7 +31,7 @@ class ExpenseSplitBase(BaseModel):
     is_guest: bool = False
     amount_owed: int
     percentage: Optional[int] = None
-    shares: Optional[int] = None
+    shares: Optional[float] = None
 
 # Expense guest schemas (for non-group expenses)
 class ExpenseGuestCreate(BaseModel):
@@ -68,7 +68,7 @@ class ItemAssignment(BaseModel):
 class ItemSplitDetail(BaseModel):
     amount: Optional[int] = None  # For EXACT split (in cents)
     percentage: Optional[float] = None  # For PERCENTAGE split (0-100)
-    shares: Optional[int] = None  # For SHARES split
+    shares: Optional[float] = None  # For SHARES split
 
 class ExpenseItemCreate(BaseModel):
     description: str = Field(..., max_length=200)
@@ -143,7 +143,7 @@ class ExpenseSplitDetail(BaseModel):
     is_guest: bool = False
     amount_owed: int
     percentage: Optional[int] = None
-    shares: Optional[int] = None
+    shares: Optional[float] = None
     user_name: str
 
     class Config:
@@ -476,7 +476,7 @@ class FriendExpenseWithSplits(ExpenseWithSplits):
 
 
 # Profile Management and Password Recovery Schemas
-from datetime import datetime
+
 
 class PasswordChangeRequest(BaseModel):
     """Request to change password (requires current password)"""

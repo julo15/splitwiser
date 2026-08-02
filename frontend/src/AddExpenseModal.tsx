@@ -18,7 +18,8 @@ import type {
     Group,
     Participant,
     SplitType,
-    ExpenseGuestCreate
+    ExpenseGuestCreate,
+    ExpensePayload
 } from './types/expense';
 import {
     getParticipantName as getParticipantNameUtil
@@ -297,7 +298,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             return;
         }
 
-        const payload: any = {
+        const payload: ExpensePayload = {
             description,
             amount: totalAmountCents,
             currency,
@@ -327,7 +328,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 itemizedExpense.tipAmount,
             );
 
-            const itemizedPayload: any = {
+            const itemizedPayload: ExpensePayload = {
                 description,
                 amount: itemsTotal,
                 currency,

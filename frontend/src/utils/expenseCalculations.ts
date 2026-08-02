@@ -1,5 +1,21 @@
 import type { Participant, ExpenseItem, ExpenseItemDetail } from '../types/expense';
 
+/**
+ * Read one split-details entry as a number.
+ *
+ * The field holds raw text: the input is `type="text"` so a decimal can be
+ * typed a character at a time, which means "12." and "" are legitimate
+ * in-progress states — and so is "abc", because nothing stops it being typed.
+ * A bare `parseFloat` turns that last one into NaN, which then rides all the
+ * way into `amount_owed` and serialises as `null` in the request body. Under
+ * SHARES a single bad entry poisons every participant's amount, not just its
+ * own. Anything unparseable is worth exactly zero.
+ */
+export const parseSplitValue = (value: string | number | undefined): number => {
+    const parsed = parseFloat(String(value ?? '').trim());
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
 export interface SplitResult {
     user_id: number;
     is_guest: boolean;
@@ -31,14 +47,14 @@ export const calculateEqualSplit = (
 export const calculateExactSplit = (
     totalAmountCents: number,
     participants: Participant[],
-    splitDetails: { [key: string]: number }
+    splitDetails: { [key: string]: string | number }
 ): { splits: SplitResult[]; error?: string } => {
     const splits = participants.map(p => {
         const key = p.isGuest ? `guest_${p.id}` : `user_${p.id}`;
         return {
             user_id: p.id,
             is_guest: p.isGuest,
-            amount_owed: Math.round(parseFloat(splitDetails[key]?.toString() || '0') * 100)
+            amount_owed: Math.round(parseSplitValue(splitDetails[key]) * 100)
         };
     });
 
@@ -59,13 +75,13 @@ export const calculateExactSplit = (
 export const calculatePercentSplit = (
     totalAmountCents: number,
     participants: Participant[],
-    splitDetails: { [key: string]: number }
+    splitDetails: { [key: string]: string | number }
 ): { splits: SplitResult[]; error?: string } => {
     const shares = participants.map(p => {
         const key = p.isGuest ? `guest_${p.id}` : `user_${p.id}`;
         return {
             participant: p,
-            percent: parseFloat(splitDetails[key]?.toString() || '0')
+            percent: parseSplitValue(splitDetails[key])
         };
     });
 
@@ -106,13 +122,13 @@ export const calculatePercentSplit = (
 export const calculateSharesSplit = (
     totalAmountCents: number,
     participants: Participant[],
-    splitDetails: { [key: string]: number }
+    splitDetails: { [key: string]: string | number }
 ): { splits: SplitResult[]; error?: string } => {
     const sharesMap = participants.map(p => {
         const key = p.isGuest ? `guest_${p.id}` : `user_${p.id}`;
         return {
             participant: p,
-            shares: parseFloat(splitDetails[key]?.toString() || '0')
+            shares: parseSplitValue(splitDetails[key])
         };
     });
 
@@ -131,7 +147,7 @@ export const calculateSharesSplit = (
                 user_id: s.participant.id,
                 is_guest: s.participant.isGuest,
                 amount_owed: totalAmountCents - runningTotal,
-                shares: Math.round(s.shares)
+                shares: s.shares
             };
         }
         const shareAmount = Math.round(totalAmountCents * (s.shares / totalShares));
@@ -140,7 +156,7 @@ export const calculateSharesSplit = (
             user_id: s.participant.id,
             is_guest: s.participant.isGuest,
             amount_owed: shareAmount,
-            shares: Math.round(s.shares)
+            shares: s.shares
         };
     });
 

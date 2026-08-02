@@ -1,0 +1,56 @@
+# Ruff configuration for the Splitwiser backend.
+#
+# Deliberately a starter set: correctness and import hygiene rules that the
+# codebase can hold at zero today. Candidates to enable next, once their
+# existing violations are worked off, are `SIM` (~16 findings, mostly
+# collapsible ifs and `in dict.keys()`) and `UP` (~150 findings, all
+# mechanical typing modernisation such as `Optional[X]` -> `X | None`).
+
+target-version = "py311"
+line-length = 120
+extend-exclude = ["venv"]
+
+[lint]
+select = [
+    "E4",   # pycodestyle: imports
+    "E7",   # pycodestyle: statements
+    "E9",   # pycodestyle: runtime errors
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "RUF",  # ruff-specific
+]
+
+ignore = [
+    # FastAPI's core idiom is a function call in a parameter default —
+    # `db: Session = Depends(get_db)`. This would fire on every endpoint.
+    "B008",
+    # SQLAlchemy compiles `== None` / `== False` into SQL. Rewriting them to
+    # `is None` / `is False` evaluates in Python instead and silently breaks
+    # the query, so these are load-bearing, not style slips.
+    "E711",
+    "E712",
+    # En dashes in prose and the ℹ symbol in CLI output are intentional.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+]
+
+[lint.per-file-ignores]
+# load_dotenv() has to run before importing anything that reads the
+# environment at import time (auth.py reads SECRET_KEY), so these imports
+# cannot be hoisted above it.
+"main.py" = ["E402"]
+
+[lint.isort]
+# These are top-level modules in backend/, not third-party packages.
+known-first-party = [
+    "auth",
+    "database",
+    "dependencies",
+    "models",
+    "schemas",
+    "ocr",
+    "routers",
+    "utils",
+]

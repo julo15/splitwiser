@@ -137,11 +137,20 @@ description = "Run frontend linting"
 dir = "frontend"
 run = "npm run lint"
 
-[tasks.test]
-description = "Run backend tests"
+[tasks."test:backend"]
+description = "Run the backend test suite"
 dir = "backend"
 run = """
 #!/usr/bin/env bash
 source venv/bin/activate
-pytest tests/test_main.py
+pytest tests/
 """
+
+[tasks."test:frontend"]
+description = "Run the frontend test suite"
+dir = "frontend"
+run = "npm run test"
+
+[tasks.test]
+description = "Run all tests (backend and frontend)"
+depends = ["test:backend", "test:frontend"]

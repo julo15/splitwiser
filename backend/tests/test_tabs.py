@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 import pytest
 
 import models
-from conftest import client, db_session  # noqa: F401
 
 
 def register(client, email, name):
@@ -458,6 +457,7 @@ class TestPublicRateLimiting:
         # app object behind. The client fixture is bound to conftest's, so an
         # override popped off the other one would have no effect.
         from conftest import app
+
         from routers.tabs import tab_join_rate_limiter
 
         headers = register(client, "vince@example.com", "Vince Woo")

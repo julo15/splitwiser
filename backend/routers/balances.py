@@ -1,6 +1,7 @@
 """Balances router: balance calculations and debt simplification."""
 
-from typing import Annotated, Dict, List, Tuple
+from typing import Annotated, Optional
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -8,17 +9,10 @@ import models
 import schemas
 from database import get_db
 from dependencies import get_current_user
-from utils.validation import get_group_or_404, verify_group_membership
-from utils.display import get_guest_display_name, get_participant_display_name
 from utils.balances import calculate_net_balances
-from utils.currency import (
-    format_currency,
-    convert_to_usd,
-    convert_currency,
-    get_current_exchange_rates,
-    EXCHANGE_RATES
-)
-
+from utils.currency import convert_currency, convert_to_usd, format_currency, get_current_exchange_rates
+from utils.display import get_participant_display_name
+from utils.validation import get_group_or_404, verify_group_membership
 
 router = APIRouter(tags=["balances"])
 
@@ -28,7 +22,7 @@ def get_group_balances(
     group_id: int,
     current_user: Annotated[models.User, Depends(get_current_user)],
     db: Session = Depends(get_db),
-    convert_to: str = None  # Optional: convert all balances to this currency using historical rates
+    convert_to: Optional[str] = None  # Optional: convert all balances to this currency using historical rates
 ):
     get_group_or_404(db, group_id)
     verify_group_membership(db, group_id, current_user.id)
@@ -307,7 +301,7 @@ def get_group_balances(
 def get_balances(
     current_user: Annotated[models.User, Depends(get_current_user)], 
     db: Session = Depends(get_db),
-    convert_to: str = None  # Optional: convert all group balances from their default currencies to this currency
+    convert_to: Optional[str] = None  # Optional: convert all group balances from their default currencies to this currency
 ):
     """
     Get user's balances across all groups and 1-to-1 IOUs.

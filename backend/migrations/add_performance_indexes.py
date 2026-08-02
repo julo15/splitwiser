@@ -7,9 +7,10 @@ Adds indexes for:
 - expense_splits.user_id
 """
 import argparse
+import os
 import sqlite3
 import sys
-import os
+
 
 def check_index_exists(cursor, index_name):
     # For SQLite, we check sqlite_master

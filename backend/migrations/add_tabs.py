@@ -168,7 +168,6 @@ def migrate(db_path: str, dry_run: bool = False) -> int:
 
         for name, sql in STATEMENTS:
             if dry_run:
-                target = sql.split()[-1] if "INDEX" in sql else name
                 already = any(t in existing for t in ("tabs",) if t in name)
                 print(f"  would create {name}" + (" (already present)" if already else ""))
                 continue

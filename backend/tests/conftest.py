@@ -1,26 +1,25 @@
+
 import pytest
-from unittest.mock import Mock, patch
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from fastapi.testclient import TestClient
 
-from main import app
-
+from auth import create_access_token, get_password_hash
 from database import Base, get_db
+from main import app
 from models import User
-from auth import get_password_hash, create_access_token
+from routers.tabs import public_tab_rate_limiter, tab_join_rate_limiter
 
 # Import rate limiters to override them
 from utils.rate_limiter import (
     auth_rate_limiter,
+    email_verification_rate_limiter,
     ocr_rate_limiter,
     password_reset_rate_limiter,
-    email_verification_rate_limiter,
     profile_update_rate_limiter,
-    summary_rate_limiter
+    summary_rate_limiter,
 )
-from routers.tabs import public_tab_rate_limiter, tab_join_rate_limiter
 
 # Setup in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -31,6 +30,34 @@ engine = create_engine(
     poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+@pytest.fixture(autouse=True)
+def restore_dependency_overrides():
+    """Undo any FastAPI dependency override a test leaves behind.
+
+    ``app`` is a module-level singleton shared by every test, so an override
+    installed inside a test body (commonly ``get_current_user``) otherwise
+    stays active for the rest of the session and silently authenticates later
+    tests as the wrong user. Declared first so it tears down last, after the
+    other autouse fixtures have removed their own overrides.
+    """
+    snapshot = dict(app.dependency_overrides)
+    yield
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(snapshot)
+
+
+@pytest.fixture
+def app_overrides(restore_dependency_overrides):
+    """Install FastAPI dependency overrides that are undone after the test.
+
+    Use this instead of touching ``app.dependency_overrides`` directly, and
+    never rebind the attribute — assigning a fresh dict drops the overrides
+    the test fixtures rely on, including the test database session.
+    """
+    return app.dependency_overrides
+
 
 @pytest.fixture(scope="function")
 def db_session():

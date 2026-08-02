@@ -1,6 +1,8 @@
 from datetime import date, timedelta
-from models import User
+
 from auth import get_password_hash
+from models import User
+
 
 def test_create_expense_equal_split(client, auth_headers, db_session, test_user):
     # Setup: Create group and another member

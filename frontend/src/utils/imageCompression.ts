@@ -162,7 +162,7 @@ export async function compressImage(
     let minQuality = 0.1;
     let maxQuality = 0.9;
 
-    do {
+    while (true) {
       compressedDataURL = canvas.toDataURL('image/jpeg', quality);
       compressedFile = dataURLToFile(
         compressedDataURL,
@@ -189,7 +189,7 @@ export async function compressImage(
       if (maxQuality - minQuality < 0.01) {
         break;
       }
-    } while (true);
+    }
 
     // If still too large, use minimum quality
     if (compressedFile.size > maxSizeBytes) {

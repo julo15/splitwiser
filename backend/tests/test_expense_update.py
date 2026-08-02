@@ -1,12 +1,10 @@
 """Comprehensive integration tests for the PUT /expenses/{expense_id} endpoint."""
 
-import pytest
 from datetime import date
 from unittest.mock import patch
 
+from auth import create_access_token, get_password_hash
 from models import User
-from auth import get_password_hash, create_access_token
-
 
 # ---------------------------------------------------------------------------
 # Helpers

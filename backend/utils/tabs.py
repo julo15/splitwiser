@@ -46,7 +46,9 @@ def compute_item_shares(
         # Orphans fall to the whole table rather than to the payer alone.
         recipients = claimers if claimers else participant_ids
 
-        for pid, part in zip(recipients, split_evenly(price, len(recipients))):
+        for pid, part in zip(
+            recipients, split_evenly(price, len(recipients)), strict=True
+        ):
             shares[pid] += part
 
     return shares
@@ -69,7 +71,13 @@ def distribute_proportionally(
 
     total_weight = sum(weights.values())
     if total_weight <= 0:
-        return dict(zip(participant_ids, split_evenly(amount, len(participant_ids))))
+        return dict(
+            zip(
+                participant_ids,
+                split_evenly(amount, len(participant_ids)),
+                strict=True,
+            )
+        )
 
     # Floor each share, then hand out the remaining cents to the largest
     # fractional parts, so the result sums exactly and favours bigger orders.

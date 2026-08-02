@@ -8,9 +8,9 @@ import fitz  # PyMuPDF
 import pytest
 from fastapi.testclient import TestClient
 
-from main import app
-from routers.ocr import RECEIPT_DIR, MAX_PDF_PAGES
 from dependencies import get_current_user
+from main import app
+from routers.ocr import MAX_PDF_PAGES, RECEIPT_DIR
 from utils.rate_limiter import ocr_rate_limiter
 
 client = TestClient(app)
@@ -139,7 +139,8 @@ def test_oversized_pdf_rejected(mock_llm):
 def test_rasterize_clamps_huge_page_resolution():
     """A PDF with an enormous page box is clamped to MAX_RENDER_PX (DoS guard)."""
     from PIL import Image
-    from routers.ocr import _rasterize_pdf, MAX_RENDER_PX
+
+    from routers.ocr import MAX_RENDER_PX, _rasterize_pdf
 
     doc = fitz.open()
     doc.new_page(width=14400, height=14400)  # PDF max page dimension

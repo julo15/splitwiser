@@ -1,8 +1,9 @@
 
-import pytest
 from sqlalchemy import event
-from models import Group, GuestMember, Expense, ExpenseSplit, User, GroupMember
+
 from auth import get_password_hash
+from models import Expense, ExpenseSplit, Group, GroupMember, GuestMember, User
+
 
 def test_get_group_expenses_n_plus_one(client, db_session, auth_headers, test_user):
     # 1. Setup: Create a group

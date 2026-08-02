@@ -2,12 +2,7 @@
 """
 Initialize/recreate database tables from models
 """
-from database import engine, Base
-from models import (
-    User, Group, GroupMember, GuestMember, Friendship,
-    Expense, ExpenseSplit, ExpenseItem, ExpenseItemAssignment,
-    RefreshToken
-)
+from database import Base, engine
 
 if __name__ == "__main__":
     print("Creating all database tables...")

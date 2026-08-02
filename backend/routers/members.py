@@ -1,6 +1,7 @@
 """Members router: manage group members and guests."""
 
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -8,8 +9,7 @@ import models
 import schemas
 from database import get_db
 from dependencies import get_current_user
-from utils.validation import get_group_or_404, verify_group_membership, get_user_by_email
-
+from utils.validation import get_group_or_404, get_user_by_email, verify_group_membership
 
 router = APIRouter(prefix="/groups/{group_id}", tags=["members"])
 

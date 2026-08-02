@@ -2,8 +2,6 @@
 
 import pytest
 
-from conftest import client, db_session  # noqa: F401
-
 
 def register(client, email, name):
     client.post(

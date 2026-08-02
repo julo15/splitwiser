@@ -1,14 +1,16 @@
 
+import io
+import os
+from unittest.mock import MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
-import os
-import io
+
+from dependencies import get_current_user
 
 # Import app and dependencies
 from main import app
 from routers.ocr import RECEIPT_DIR
-from dependencies import get_current_user
 from utils.rate_limiter import ocr_rate_limiter
 
 # Create client

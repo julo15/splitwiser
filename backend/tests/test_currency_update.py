@@ -1,7 +1,7 @@
-import pytest
 from unittest.mock import patch
-from conftest import client, db_session
+
 import models
+
 
 def test_update_expense_updates_exchange_rate(client, db_session):
     # Register and login

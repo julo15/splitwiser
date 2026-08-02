@@ -1,7 +1,6 @@
 
-import pytest
-from conftest import client, db_session
 import models
+
 
 def test_repro_guest_claim_bug(client, db_session):
     # 1. Register and Login User 1 (Creator)
@@ -55,7 +54,7 @@ def test_repro_guest_claim_bug(client, db_session):
     )
     assert res.status_code == 200
     data = res.json()
-    new_user_token = data["access_token"]
+    assert data["access_token"]
     
     # Verify claimed_group_id is returned
     assert data["claimed_group_id"] == group_id

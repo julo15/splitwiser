@@ -64,6 +64,10 @@ const SettleUpModal: React.FC<SettleUpModalProps> = ({
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
 
+        // The payer is the signed-in user; without an id there is nothing to
+        // record against. Guarded here so the payload stays fully typed.
+        if (!user?.id) return;
+
         const cents = Math.round(parseFloat(amount) * 100);
         if (!Number.isFinite(cents) || cents <= 0) {
             setAlert({
@@ -86,7 +90,8 @@ const SettleUpModal: React.FC<SettleUpModalProps> = ({
                 amount: cents,
                 currency,
                 date: formatDateForInput(new Date()),
-                payer_id: user?.id,
+                payer_id: user.id,
+                payer_is_guest: false,
                 group_id: null,
                 split_type: 'EXACT',
                 icon: '🏦',

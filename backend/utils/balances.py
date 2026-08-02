@@ -2,11 +2,11 @@
 
 import logging
 from typing import Dict, Iterable, List, Optional, Set, Tuple, Union, overload
+
 from sqlalchemy.orm import Session
 
 import models
-from utils.currency import convert_to_usd, convert_currency
-
+from utils.currency import convert_currency, convert_to_usd
 
 logger = logging.getLogger(__name__)
 

@@ -16,9 +16,17 @@ on:
         type: string
 
 jobs:
+  # Gate: nothing ships unless both suites pass on the exact ref being
+  # deployed. A manual dispatch of another branch tests that branch, not main.
+  tests:
+    uses: ./.github/workflows/_tests.yml
+    with:
+      ref: ${{ github.event.inputs.branch || github.ref }}
+
   deploy:
+    needs: tests
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
