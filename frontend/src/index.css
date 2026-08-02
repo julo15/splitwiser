@@ -3,6 +3,138 @@
 /* Configure dark mode variant for Tailwind v4 */
 @variant dark (&:where(.dark, .dark *));
 
+/*
+ * ---------------------------------------------------------------------------
+ * Nocturne / Splitwiser redesign tokens (--sw-*)
+ * ---------------------------------------------------------------------------
+ * Ported from the redesign mockups. The design bundle expresses these as
+ * `:root, [data-theme="dark"]` (dark-first) with a `[data-theme="light"]`
+ * override. We keep this app's existing `.dark` class instead — it is already
+ * wired to localStorage, system preference and the PWA theme-color meta — so
+ * the polarity is flipped here: `:root` holds the light values (the class-less
+ * default) and `.dark` holds the dark ones. The hex values are verbatim.
+ *
+ * `--sw-canvas` from the bundle is deliberately omitted: it is the mockup
+ * canvas behind the device frames, not a product surface.
+ */
+:root {
+    --sw-bg: #e4e7f5;
+    --sw-surface: #f7f8fe;
+    --sw-raise: #eceffb;
+    --sw-sunk: #dfe3f2;
+    --sw-text: #292b31;
+    --sw-muted: #595d6c;
+    --sw-dim: #75798c;
+    --sw-line: #cfd3e5;
+    --sw-accent: #796cbf;
+    --sw-accent-soft: #e7e5fe;
+    --sw-accent-ghost: #f0eeff;
+    --sw-pos: #1c8567;
+    --sw-pos-soft: #d8f0e7;
+    --sw-neg: #b34a3f;
+    --sw-neg-soft: #f8e2df;
+
+    /*
+     * Not in the bundle. The mockups are dark-first and hard-code #161826 --
+     * i.e. dark-mode --sw-bg -- as the text/glyph color on top of an accent
+     * fill (the FAB glyph, the accent icon tiles). That value is unreadable on
+     * the lighter light-mode accent, so the pairing is tokenized here and each
+     * theme supplies its own.
+     */
+    --sw-on-accent: #f7f8fe;
+}
+
+.dark {
+    --sw-bg: #161826;
+    --sw-surface: #232532;
+    --sw-raise: #2b2e3d;
+    --sw-sunk: #1c1e2c;
+    --sw-text: #e9e9ed;
+    --sw-muted: #9397ab;
+    --sw-dim: #75798c;
+    --sw-line: #3f424d;
+    --sw-accent: #9184d9;
+    --sw-accent-soft: #423a6a;
+    --sw-accent-ghost: #2b2741;
+    --sw-pos: #5fd0a8;
+    --sw-pos-soft: #1d3f37;
+    --sw-neg: #e88a80;
+    --sw-neg-soft: #442a2c;
+    --sw-on-accent: #161826;
+}
+
+/*
+ * Expose the tokens to Tailwind as utilities (bg-sw-surface, text-sw-muted,
+ * border-sw-line, rounded-sw-card, ...).
+ *
+ * `@theme inline` is required rather than plain `@theme`: it emits the
+ * utilities as `var(--sw-*)` references instead of snapshotting the values at
+ * build time, so the `.dark` cascade above keeps working at runtime.
+ */
+@theme inline {
+    --color-sw-bg: var(--sw-bg);
+    --color-sw-surface: var(--sw-surface);
+    --color-sw-raise: var(--sw-raise);
+    --color-sw-sunk: var(--sw-sunk);
+    --color-sw-text: var(--sw-text);
+    --color-sw-muted: var(--sw-muted);
+    --color-sw-dim: var(--sw-dim);
+    --color-sw-line: var(--sw-line);
+    --color-sw-accent: var(--sw-accent);
+    --color-sw-accent-soft: var(--sw-accent-soft);
+    --color-sw-accent-ghost: var(--sw-accent-ghost);
+    --color-sw-pos: var(--sw-pos);
+    --color-sw-pos-soft: var(--sw-pos-soft);
+    --color-sw-neg: var(--sw-neg);
+    --color-sw-neg-soft: var(--sw-neg-soft);
+    --color-sw-on-accent: var(--sw-on-accent);
+
+    /*
+     * Radii — the mockups use a softer, larger scale than Nocturne's 8px.
+     * row/card 10-12px, mobile cards 14-16px, FAB 19px, sheet tops 24px.
+     */
+    --radius-sw-row: 10px;
+    --radius-sw-card: 12px;
+    --radius-sw-card-lg: 16px;
+    --radius-sw-fab: 19px;
+    --radius-sw-sheet: 24px;
+
+    /*
+     * Elevation — a hairline ring, not a blurred shadow. Real shadow appears
+     * only under the FAB and under sheets.
+     */
+    --shadow-sw-hairline: 0 0 0 1px var(--sw-line);
+    --shadow-sw-fab: 0 6px 20px rgb(0 0 0 / 0.28);
+    --shadow-sw-sheet: 0 -8px 32px rgb(0 0 0 / 0.24);
+
+    --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+        Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/*
+ * Tabular numerals for every money figure. Non-negotiable for the balance
+ * tables and the tab board, per the design handoff.
+ */
+.sw-num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+
+/*
+ * Nocturne forbids headings heavier than 500 — hierarchy comes from size and
+ * space, not weight. Large numerals take negative tracking.
+ */
+.sw-heading {
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+.sw-display {
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+}
+
 /* Base styles for smooth theme transitions */
 * {
     transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
