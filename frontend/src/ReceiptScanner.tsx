@@ -1,7 +1,25 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+    ArrowRight,
+    CameraRotate,
+    CheckCircle,
+    ClipboardText,
+    FilePdf,
+    ImageSquare,
+    Sparkle,
+    Trash,
+    WarningCircle,
+    X,
+} from '@phosphor-icons/react';
 import { getApiUrl } from './api';
 import { useSync } from './contexts/SyncContext';
 import { compressImage } from './utils/imageCompression';
+import { Button } from './components/ui';
+import { useStagedReveal } from './hooks/useStagedReveal';
+import {
+    reconcileReceipt,
+    reconciliationWarning,
+} from './utils/receiptReconciliation';
 
 // Synthesize a filename for a clipboard blob that usually has none.
 // e.g. image/png -> pasted-receipt.png (defaults to png).
@@ -70,11 +88,17 @@ interface ScanResult {
     receipt_image_path: string;
 }
 
-type Phase = 'upload' | 'review';
+/**
+ * 'capture' picks the image, 'reading' covers the scan call and the staged
+ * reveal of what came back, 'review' reconciles it against the printed total.
+ */
+type Phase = 'capture' | 'reading' | 'review';
+
+const formatCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClose }) => {
     const { isOnline } = useSync();
-    const [phase, setPhase] = useState<Phase>('upload');
+    const [phase, setPhase] = useState<Phase>('capture');
     const [image, setImage] = useState<File | null>(null);
     const [imageUrl, setImageUrl] = useState<string>('');
     const [isPdf, setIsPdf] = useState(false);
@@ -88,12 +112,20 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
     const [total, setTotal] = useState<number | null>(null);
     const [receiptImagePath, setReceiptImagePath] = useState<string>('');
 
+    /**
+     * What came back from the scan, held separately from `items` so the reveal
+     * animates the response before the editable list takes over.
+     */
+    const [incoming, setIncoming] = useState<ScannedItem[] | null>(null);
+    const { revealed, revealing } = useStagedReveal(incoming);
+
     // Editing state
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [editDescription, setEditDescription] = useState('');
     const [editPrice, setEditPrice] = useState('');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
     // Tracks the current preview object URL for revocation without making loadFile
     // depend on imageUrl (which would re-subscribe the paste listener every render).
     const objectUrlRef = useRef<string>('');
@@ -114,7 +146,7 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         }
     }, []);
 
-    // Shared "adopt this file" path for both the file picker and clipboard paste.
+    // Shared "adopt this file" path for the picker, the camera and paste.
     const loadFile = useCallback((file: File) => {
         setImage(file);
         setError('');
@@ -131,6 +163,8 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         if (e.target.files && e.target.files[0]) {
             loadFile(e.target.files[0]);
         }
+        // Allow re-picking the same file after a retake.
+        e.target.value = '';
     };
 
     // Revoke the last preview object URL on unmount so closing the modal mid-flow
@@ -141,10 +175,10 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         revokePreviewUrl();
     }, [revokePreviewUrl]);
 
-    // Keyboard paste (Cmd/Ctrl+V): active only in the upload phase and when idle,
-    // so pasting while editing an item in the review phase is never hijacked.
+    // Keyboard paste (Cmd/Ctrl+V): active only while capturing and idle, so
+    // pasting while editing an item in review is never hijacked.
     useEffect(() => {
-        if (phase !== 'upload' || loading) return;
+        if (phase !== 'capture' || loading) return;
         const onPaste = (e: ClipboardEvent) => {
             // A scan may have started between setLoading(true) and this effect
             // re-subscribing; don't let a stray paste swap the image mid-upload.
@@ -157,6 +191,14 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         return () => document.removeEventListener('paste', onPaste);
     }, [phase, loading, loadFile]);
 
+    // Hand over to review once the response has landed and finished revealing.
+    useEffect(() => {
+        if (phase !== 'reading' || loading || !incoming || revealing) return;
+        setItems(incoming);
+        setIncoming(null);
+        setPhase('review');
+    }, [phase, loading, incoming, revealing]);
+
     const handlePasteFromClipboard = async () => {
         if (!navigator.clipboard?.read) {
             setError("Pasting from the clipboard isn't supported in this browser.");
@@ -166,10 +208,10 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         if (pastingRef.current) return;
         pastingRef.current = true;
         try {
-            const items = await navigator.clipboard.read();
+            const clipboardItems = await navigator.clipboard.read();
             // The modal may have closed while awaiting the (permissioned) read.
             if (!mountedRef.current) return;
-            const file = await imageFileFromAsyncClipboard(items);
+            const file = await imageFileFromAsyncClipboard(clipboardItems);
             if (!mountedRef.current) return;
             if (!file) {
                 setError('No image found on the clipboard.');
@@ -190,6 +232,8 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         setLoading(true);
         loadingRef.current = true;
         setError('');
+        setIncoming(null);
+        setPhase('reading');
 
         try {
             // PDFs are sent as-is; compressImage only handles raster images.
@@ -216,19 +260,22 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
                 throw new Error('No items detected on the receipt. Please try a clearer photo.');
             }
 
-            setItems(data.items);
             setTax(data.tax);
             setTip(data.tip);
             setTotal(data.total);
             setReceiptImagePath(data.receipt_image_path);
-            setPhase('review');
+            // Reveal the response rather than dropping it in all at once.
+            setIncoming(data.items);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to scan receipt');
+            setPhase('capture');
         } finally {
             setLoading(false);
             loadingRef.current = false;
         }
     };
+
+    const reconciliation = reconcileReceipt(items, tax, tip, total);
 
     const handleConfirm = () => {
         const finalItems = items.map(item => ({
@@ -236,17 +283,14 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
             price: item.price,
         }));
 
-        // Build a validation warning if item total doesn't match receipt total
-        let warning: string | null = null;
-        if (total != null) {
-            const itemSum = items.reduce((sum, i) => sum + i.price, 0);
-            const expectedSubtotal = total - (tax ?? 0) - (tip ?? 0);
-            if (expectedSubtotal > 0 && Math.abs(itemSum - expectedSubtotal) > 10) {
-                warning = `Item total ($${(itemSum / 100).toFixed(2)}) differs from receipt subtotal ($${(expectedSubtotal / 100).toFixed(2)}).`;
-            }
-        }
-
-        onItemsDetected(finalItems, receiptImagePath, warning, tax, tip, total);
+        onItemsDetected(
+            finalItems,
+            receiptImagePath,
+            reconciliationWarning(reconciliation, formatCents),
+            tax,
+            tip,
+            total
+        );
     };
 
     const handleCancel = () => {
@@ -254,11 +298,12 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         onClose();
     };
 
-    // Re-scan returns to the upload phase while keeping the selected image and its
-    // live preview, so it must NOT revoke the object URL.
-    const handleRescan = () => {
-        setPhase('upload');
+    // Retake returns to capture while keeping the selected image and its live
+    // preview, so it must NOT revoke the object URL.
+    const handleRetake = () => {
+        setPhase('capture');
         setItems([]);
+        setIncoming(null);
         setError('');
     };
 
@@ -280,322 +325,437 @@ const ReceiptScanner: React.FC<ReceiptScannerProps> = ({ onItemsDetected, onClos
         setEditingIndex(null);
     };
 
-    const cancelEdit = () => {
-        setEditingIndex(null);
-    };
+    const cancelEdit = () => setEditingIndex(null);
 
     const deleteItem = (index: number) => {
         setItems(prev => prev.filter((_, i) => i !== index));
         if (editingIndex === index) setEditingIndex(null);
     };
 
-    const formatCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+    /** One-tap fix for a shortfall: book the difference as its own line. */
+    const addDifferenceAsItem = () => {
+        if (reconciliation.delta === null || reconciliation.delta <= 0) return;
+        setItems(prev => [
+            ...prev,
+            {
+                description: 'Unread line from receipt',
+                price: reconciliation.delta as number,
+                quantity: 1,
+            },
+        ]);
+    };
 
-    const itemSubtotal = items.reduce((sum, i) => sum + i.price, 0);
+    const revealedTotal = revealed.reduce((sum, item) => sum + item.price, 0);
 
     return (
-        <div className="fixed inset-0 bg-gray-600 dark:bg-gray-900/75 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl dark:shadow-gray-900/50 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                {/* Header */}
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold dark:text-gray-100">Scan Receipt</h2>
-                    <div className="flex items-center gap-2 text-sm">
-                        <div className={`flex items-center gap-1 ${phase === 'upload' ? 'text-teal-600 dark:text-teal-400 font-semibold' : 'text-gray-400 dark:text-gray-500'}`}>
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${phase === 'upload' ? 'bg-teal-100 dark:bg-teal-900/30' : 'bg-gray-100 dark:bg-gray-700'}`}>1</span>
-                            <span className="hidden sm:inline">Upload</span>
-                        </div>
-                        <span className="text-gray-300 dark:text-gray-600">&rarr;</span>
-                        <div className={`flex items-center gap-1 ${phase === 'review' ? 'text-teal-600 dark:text-teal-400 font-semibold' : 'text-gray-400 dark:text-gray-500'}`}>
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${phase === 'review' ? 'bg-teal-100 dark:bg-teal-900/30' : 'bg-gray-100 dark:bg-gray-700'}`}>2</span>
-                            <span className="hidden sm:inline">Review</span>
-                        </div>
-                    </div>
-                </div>
+        <div className="fixed inset-0 z-50 bg-black/55 flex items-end sm:items-center justify-center font-sans">
+            <div className="bg-sw-bg text-sw-text w-full sm:max-w-lg h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-sw-sheet sm:rounded-sw-card-lg shadow-[0_-12px_40px_rgba(0,0,0,.45)] sm:shadow-[0_0_0_1px_var(--sw-line)] flex flex-col overflow-hidden">
 
-                {/* Error */}
-                {error && (
-                    <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                        <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-                    </div>
-                )}
-
-                {/* Offline warning */}
-                {!isOnline && (
-                    <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                        <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                            Receipt scanning requires an internet connection.
-                        </p>
-                    </div>
-                )}
-
-                {/* Upload Phase */}
-                {phase === 'upload' && (
-                    <div>
-                        {!image && (
-                            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                                <p className="text-sm text-blue-700 dark:text-blue-400">
-                                    Take a clear photo of your receipt, upload a PDF, or paste an image from your clipboard. The AI will automatically detect and itemize all purchases.
-                                </p>
-                            </div>
-                        )}
-
-                        <div className="mb-4">
-                            <label className="block w-full">
-                                <span className="sr-only">Choose receipt</span>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*,application/pdf"
-                                    onChange={handleImageChange}
-                                    className="block w-full text-sm text-gray-500 dark:text-gray-400
-                                        file:mr-4 file:py-2 file:px-4
-                                        file:rounded-full file:border-0
-                                        file:text-sm file:font-semibold
-                                        file:bg-teal-50 file:text-teal-700
-                                        hover:file:bg-teal-100
-                                        dark:file:bg-teal-900/30 dark:file:text-teal-300
-                                        cursor-pointer file:cursor-pointer"
-                                />
-                            </label>
-                            <div className="mt-3">
-                                <button
-                                    type="button"
-                                    onClick={handlePasteFromClipboard}
-                                    disabled={loading}
-                                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-full border transition-colors ${
-                                        loading
-                                            ? 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                                            : 'border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/30'
-                                    }`}
-                                >
-                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                    </svg>
-                                    Paste from clipboard
-                                </button>
-                            </div>
-                            {image && (
-                                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                    Selected: {image.name}
-                                </p>
-                            )}
+                {/* ---------------------------------------------------- capture */}
+                {phase === 'capture' && (
+                    <>
+                        <div className="flex items-center gap-3 px-[18px] py-3.5 flex-none">
+                            <button
+                                type="button"
+                                onClick={handleCancel}
+                                aria-label="Close"
+                                className="text-sw-muted hover:text-sw-text"
+                            >
+                                <X size={22} />
+                            </button>
+                            <div className="text-base font-medium">Scan a receipt</div>
                         </div>
 
-                        {imageUrl && (
-                            <div className="mb-4">
+                        <div className="flex-1 min-h-0 mx-3.5 rounded-[18px] overflow-hidden bg-sw-sunk flex items-center justify-center relative">
+                            {imageUrl ? (
                                 <img
                                     src={imageUrl}
                                     alt="Receipt preview"
-                                    className="max-w-full max-h-80 mx-auto rounded border border-gray-300 dark:border-gray-600"
+                                    className="max-w-full max-h-full object-contain"
                                 />
-                            </div>
-                        )}
+                            ) : isPdf && image ? (
+                                <div className="flex flex-col items-center gap-2 text-sw-muted px-6 text-center">
+                                    <FilePdf size={40} />
+                                    <span className="text-sm break-all">{image.name}</span>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center gap-3 text-sw-dim px-8 text-center">
+                                    <ImageSquare size={38} />
+                                    <p className="text-[13px] text-sw-muted">
+                                        Photograph the receipt, choose an image or PDF, or paste
+                                        one from your clipboard.
+                                    </p>
+                                </div>
+                            )}
 
-                        {isPdf && image && (
-                            <div className="mb-4 flex items-center gap-3 p-4 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/40">
-                                <svg className="h-8 w-8 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                                    <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7.414A2 2 0 0017.414 6L14 2.586A2 2 0 0012.586 2H4zm5 10a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-sm text-gray-700 dark:text-gray-300 break-all">{image.name}</span>
-                            </div>
-                        )}
+                            {/* Framing guides, drawn over whatever is behind them. */}
+                            {!image && (
+                                <>
+                                    <span className="absolute top-8 left-12 w-[22px] h-[22px] border-t-[3px] border-l-[3px] border-sw-accent rounded-tl-[5px]" />
+                                    <span className="absolute top-8 right-12 w-[22px] h-[22px] border-t-[3px] border-r-[3px] border-sw-accent rounded-tr-[5px]" />
+                                    <span className="absolute bottom-8 left-12 w-[22px] h-[22px] border-b-[3px] border-l-[3px] border-sw-accent rounded-bl-[5px]" />
+                                    <span className="absolute bottom-8 right-12 w-[22px] h-[22px] border-b-[3px] border-r-[3px] border-sw-accent rounded-br-[5px]" />
+                                </>
+                            )}
 
-                        {loading && (
-                            <div className="mb-4 flex items-center justify-center gap-3 py-6">
-                                <svg className="animate-spin h-5 w-5 text-teal-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                                </svg>
-                                <span className="text-sm text-gray-600 dark:text-gray-300">Scanning receipt with AI...</span>
-                            </div>
-                        )}
+                            {image && (
+                                <div className="absolute top-3.5 left-0 right-0 flex justify-center">
+                                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/70 text-white text-[12.5px]">
+                                        <CheckCircle size={15} weight="fill" className="text-sw-pos" />
+                                        Ready to read
+                                    </span>
+                                </div>
+                            )}
+                        </div>
 
-                        <div className="flex justify-end space-x-3">
+                        <div className="px-[18px] pt-3.5 pb-2 flex-none">
+                            {error && <p className="text-[12.5px] text-sw-neg mb-2">{error}</p>}
+                            {!isOnline && (
+                                <p className="text-[12.5px] text-sw-neg mb-2">
+                                    Scanning needs an internet connection.
+                                </p>
+                            )}
+                            {image && (
+                                // Names the adopted file — the only confirmation a PDF
+                                // gets, since it has no preview to show.
+                                <p className="text-xs text-sw-muted mb-1 break-all">
+                                    Selected: {image.name}
+                                </p>
+                            )}
+                            <p className="text-xs text-sw-dim">
+                                Long receipt? Photograph it in parts and add the lines from each.
+                            </p>
+                        </div>
+
+                        {/* Library / shutter / paste — the three capture routes as peers. */}
+                        <div className="px-7 pb-3.5 flex items-center justify-between flex-none">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*,application/pdf"
+                                onChange={handleImageChange}
+                                className="sr-only"
+                            />
+                            <input
+                                ref={cameraInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={handleImageChange}
+                                className="sr-only"
+                            />
+
                             <button
-                                onClick={handleCancel}
-                                className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                                disabled={loading}
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                aria-label="Choose an image or PDF from your library"
+                                className="flex flex-col items-center gap-1 w-[58px] text-sw-muted hover:text-sw-text"
                             >
-                                Cancel
+                                <ImageSquare size={25} />
+                                <span className="text-[10.5px]">Library</span>
                             </button>
+
                             <button
-                                onClick={handleScan}
-                                disabled={!image || loading || !isOnline}
-                                className={`px-4 py-2 text-white rounded flex items-center gap-2 ${
-                                    !image || loading || !isOnline
-                                        ? 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'
-                                        : 'bg-teal-500 hover:bg-teal-600'
-                                }`}
+                                type="button"
+                                onClick={() =>
+                                    image ? handleScan() : cameraInputRef.current?.click()
+                                }
+                                disabled={loading || (!!image && !isOnline)}
+                                aria-label={image ? 'Read this receipt' : 'Take a photo'}
+                                className="w-[70px] h-[70px] rounded-full shadow-[0_0_0_3px_var(--sw-accent)] flex items-center justify-center disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                             >
-                                {loading ? 'Scanning...' : 'Scan Receipt'}
+                                <span className="w-14 h-14 rounded-full bg-sw-accent flex items-center justify-center text-sw-on-accent text-[13px] font-medium">
+                                    {image ? 'Read' : ''}
+                                </span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handlePasteFromClipboard}
+                                disabled={loading}
+                                aria-label="Paste from clipboard"
+                                className="flex flex-col items-center gap-1 w-[58px] text-sw-muted hover:text-sw-text disabled:opacity-45"
+                            >
+                                <ClipboardText size={25} />
+                                <span className="text-[10.5px]">Paste</span>
                             </button>
                         </div>
-                    </div>
+                    </>
                 )}
 
-                {/* Review Phase */}
-                {phase === 'review' && (
-                    <div>
-                        {/* Receipt image thumbnail for reference */}
-                        {imageUrl && (
-                            <details className="mb-4">
-                                <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300">
-                                    View receipt image
-                                </summary>
-                                <div className="mt-2">
-                                    <img
-                                        src={imageUrl}
-                                        alt="Receipt"
-                                        className="max-w-full max-h-64 mx-auto rounded border border-gray-300 dark:border-gray-600"
-                                    />
+                {/* ---------------------------------------------------- reading */}
+                {phase === 'reading' && (
+                    <>
+                        <div className="flex items-center gap-3 px-[18px] py-4 flex-none">
+                            <div className="text-[17px] font-medium">Reading your receipt</div>
+                            <Button
+                                variant="secondary"
+                                onClick={handleRetake}
+                                className="ml-auto min-h-[34px] text-sw-muted"
+                            >
+                                Cancel
+                            </Button>
+                        </div>
+
+                        <div className="px-4 flex gap-3.5 items-start flex-1 min-h-0 overflow-auto">
+                            <div className="relative w-[104px] flex-none rounded-lg overflow-hidden bg-sw-sunk">
+                                {imageUrl ? (
+                                    <img src={imageUrl} alt="" className="w-full object-cover" />
+                                ) : (
+                                    <div className="h-32 flex items-center justify-center text-sw-dim">
+                                        <FilePdf size={26} />
+                                    </div>
+                                )}
+                                {/* Scanning line, purely decorative. */}
+                                <span
+                                    className="absolute left-0 right-0 h-0.5 bg-sw-accent shadow-[0_0_14px_3px_rgba(145,132,217,.7)] animate-pulse"
+                                    style={{ top: '45%' }}
+                                    aria-hidden="true"
+                                />
+                            </div>
+
+                            <div className="flex-1 min-w-0" aria-live="polite">
+                                <div className="text-[12.5px] text-sw-muted mb-0.5">
+                                    Found so far
                                 </div>
-                            </details>
-                        )}
-                        {isPdf && image && (
-                            <div className="mb-4 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                                <svg className="h-4 w-4 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                                    <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7.414A2 2 0 0017.414 6L14 2.586A2 2 0 0012.586 2H4z" clipRule="evenodd" />
-                                </svg>
-                                <span className="break-all">Scanned from {image.name}</span>
-                            </div>
-                        )}
+                                <div className="sw-num text-[27px] font-medium mb-3">
+                                    {revealed.length}{' '}
+                                    {revealed.length === 1 ? 'item' : 'items'} ·{' '}
+                                    {formatCents(revealedTotal)}
+                                </div>
 
-                        {/* Items list */}
-                        <div className="space-y-2 mb-4">
-                            <div className="flex justify-between items-center mb-2">
-                                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    Detected Items ({items.length})
-                                </h3>
-                                <span className="text-sm text-gray-500 dark:text-gray-400">
-                                    Tap an item to edit
-                                </span>
-                            </div>
-
-                            {items.map((item, index) => (
-                                <div
-                                    key={index}
-                                    className={`border rounded-lg p-3 ${
-                                        editingIndex === index
-                                            ? 'border-teal-400 dark:border-teal-500 bg-teal-50/50 dark:bg-teal-900/10'
-                                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 cursor-pointer'
-                                    }`}
-                                    onClick={() => editingIndex !== index && startEditing(index)}
-                                >
-                                    {editingIndex === index ? (
-                                        <div className="space-y-2">
-                                            <input
-                                                type="text"
-                                                value={editDescription}
-                                                onChange={e => setEditDescription(e.target.value)}
-                                                className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-gray-100"
-                                                placeholder="Item name"
-                                                autoFocus
-                                                onKeyDown={e => {
-                                                    if (e.key === 'Enter') saveEdit();
-                                                    if (e.key === 'Escape') cancelEdit();
-                                                }}
+                                <div className="flex flex-col gap-[7px]">
+                                    {revealed.map((item, index) => (
+                                        <div
+                                            key={index}
+                                            className="flex items-center gap-2 text-[13px]"
+                                        >
+                                            <CheckCircle
+                                                size={15}
+                                                weight="fill"
+                                                className="text-sw-pos flex-none"
                                             />
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm text-gray-500 dark:text-gray-400">$</span>
+                                            <span className="truncate">{item.description}</span>
+                                            <span className="sw-num ml-auto text-sw-muted flex-none">
+                                                {formatCents(item.price)}
+                                            </span>
+                                        </div>
+                                    ))}
+
+                                    {(loading || revealing) && (
+                                        <>
+                                            <div className="flex items-center gap-[9px] pt-0.5">
+                                                <span className="w-[15px] h-[15px] rounded-full border-2 border-sw-line border-t-sw-accent animate-spin" />
+                                                <span className="h-[9px] flex-1 rounded bg-sw-surface" />
+                                            </div>
+                                            <div className="flex items-center gap-[9px]">
+                                                <span className="w-[15px] h-[15px]" />
+                                                <span className="h-[9px] w-[72%] rounded bg-sw-surface opacity-60" />
+                                            </div>
+                                            <div className="flex items-center gap-[9px]">
+                                                <span className="w-[15px] h-[15px]" />
+                                                <span className="h-[9px] w-[54%] rounded bg-sw-surface opacity-35" />
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="m-4 p-4 rounded-[14px] bg-sw-surface shadow-[0_0_0_1px_var(--sw-line)] flex-none">
+                            <div className="flex items-center gap-2 mb-1">
+                                <Sparkle size={16} className="text-sw-accent" />
+                                <div className="text-[13.5px] font-medium">
+                                    Usually about four seconds
+                                </div>
+                            </div>
+                            <div className="text-[12.5px] text-sw-muted">
+                                We read the whole receipt in one pass, then check the lines
+                                against the printed total.
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {/* ----------------------------------------------------- review */}
+                {phase === 'review' && (
+                    <>
+                        <div className="flex items-center gap-3 px-[18px] py-3.5 flex-none">
+                            <div className="text-[17px] font-medium">Does this look right?</div>
+                            <Button
+                                variant="ghost"
+                                onClick={handleRetake}
+                                icon={<CameraRotate size={15} />}
+                                className="ml-auto text-[13px]"
+                            >
+                                Retake
+                            </Button>
+                        </div>
+
+                        {/* Live reconciliation, stated before confirming rather than after. */}
+                        {reconciliation.status !== 'balanced' &&
+                            reconciliation.status !== 'unknown' &&
+                            reconciliation.delta !== null && (
+                                <div className="px-4 pb-3 flex-none">
+                                    <div className="bg-sw-surface rounded-[14px] px-3.5 py-3 shadow-[0_0_0_1px_var(--sw-neg)]">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <WarningCircle
+                                                size={17}
+                                                weight="fill"
+                                                className="text-sw-neg flex-none"
+                                            />
+                                            <div className="text-[13.5px] font-medium">
+                                                We're {formatCents(Math.abs(reconciliation.delta))}{' '}
+                                                {reconciliation.status === 'under' ? 'under' : 'over'}{' '}
+                                                the receipt total
+                                            </div>
+                                        </div>
+                                        <div className="text-[12.5px] text-sw-muted mb-2.5">
+                                            Items, tax and tip come to{' '}
+                                            {formatCents(reconciliation.computed)}, but the receipt
+                                            says {formatCents(total ?? 0)}.{' '}
+                                            {reconciliation.status === 'under'
+                                                ? 'Probably a line we misread.'
+                                                : 'Probably a line counted twice.'}
+                                        </div>
+                                        {reconciliation.status === 'under' && (
+                                            <Button
+                                                variant="primary"
+                                                onClick={addDifferenceAsItem}
+                                                className="min-h-[38px] text-[12.5px]"
+                                            >
+                                                Add {formatCents(reconciliation.delta)} as an item
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                        <div className="flex-1 min-h-0 overflow-auto px-4">
+                            <div className="flex items-center gap-2 pt-0.5 pb-2">
+                                <div className="text-[11px] uppercase tracking-[0.09em] text-sw-dim">
+                                    {items.length} {items.length === 1 ? 'item' : 'items'}
+                                </div>
+                                <div className="ml-auto text-xs text-sw-dim">
+                                    Tap any line to fix it
+                                </div>
+                            </div>
+
+                            {items.map((item, index) =>
+                                editingIndex === index ? (
+                                    <div
+                                        key={index}
+                                        className="px-3 py-2.5 my-1.5 rounded-sw-card bg-sw-surface shadow-[0_0_0_1px_var(--sw-accent)]"
+                                    >
+                                        <input
+                                            type="text"
+                                            value={editDescription}
+                                            onChange={e => setEditDescription(e.target.value)}
+                                            aria-label="Item name"
+                                            className="w-full mb-2 px-2.5 py-2 rounded-lg bg-sw-bg text-sw-text border border-sw-line focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
+                                            placeholder="Item name"
+                                            autoFocus
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') saveEdit();
+                                                if (e.key === 'Escape') cancelEdit();
+                                            }}
+                                        />
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-1.5 flex-1 px-2.5 py-[7px] rounded-lg bg-sw-bg shadow-[0_0_0_1px_var(--sw-line)]">
+                                                <span className="text-sw-dim text-[13px]">$</span>
                                                 <input
                                                     type="number"
                                                     step="0.01"
                                                     min="0"
                                                     value={editPrice}
                                                     onChange={e => setEditPrice(e.target.value)}
-                                                    className="w-28 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-gray-100"
+                                                    aria-label="Price"
+                                                    className="sw-num w-full bg-transparent text-sw-text text-sm focus:outline-none"
                                                     onKeyDown={e => {
                                                         if (e.key === 'Enter') saveEdit();
                                                         if (e.key === 'Escape') cancelEdit();
                                                     }}
                                                 />
-                                                <div className="flex-1" />
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); cancelEdit(); }}
-                                                    className="px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                                                >
-                                                    Cancel
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); saveEdit(); }}
-                                                    className="px-2 py-1 text-xs text-white bg-teal-500 hover:bg-teal-600 rounded"
-                                                >
-                                                    Save
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); deleteItem(index); }}
-                                                    className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                                                >
-                                                    Delete
-                                                </button>
                                             </div>
+                                            <Button
+                                                variant="ghost"
+                                                onClick={() => deleteItem(index)}
+                                                aria-label="Delete item"
+                                                className="text-sw-neg hover:bg-[color-mix(in_srgb,var(--sw-neg)_12%,transparent)]"
+                                            >
+                                                <Trash size={14} />
+                                            </Button>
+                                            <Button
+                                                variant="primary"
+                                                onClick={saveEdit}
+                                                className="min-h-9 text-[12.5px]"
+                                            >
+                                                Done
+                                            </Button>
                                         </div>
-                                    ) : (
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex-1 min-w-0">
-                                                <span className="text-sm text-gray-800 dark:text-gray-200 truncate block">
-                                                    {item.quantity > 1 && (
-                                                        <span className="text-gray-500 dark:text-gray-400 mr-1">{item.quantity}x</span>
-                                                    )}
-                                                    {item.description}
+                                    </div>
+                                ) : (
+                                    <button
+                                        key={index}
+                                        type="button"
+                                        onClick={() => startEditing(index)}
+                                        className="w-full flex items-center gap-3 py-[11px] border-b border-sw-line text-left hover:bg-sw-surface focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
+                                    >
+                                        <span className="flex-1 min-w-0 text-sm truncate">
+                                            {item.quantity > 1 && (
+                                                <span className="text-sw-dim mr-1">
+                                                    {item.quantity}×
                                                 </span>
-                                            </div>
-                                            <span className="text-sm font-medium text-gray-800 dark:text-gray-200 ml-4 whitespace-nowrap">
-                                                {formatCents(item.price)}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                                            )}
+                                            {item.description}
+                                        </span>
+                                        <span className="sw-num text-sm text-sw-muted flex-none">
+                                            {formatCents(item.price)}
+                                        </span>
+                                    </button>
+                                )
+                            )}
+
+                            {error && <p className="text-[12.5px] text-sw-neg py-2">{error}</p>}
                         </div>
 
-                        {/* Summary */}
-                        <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-1">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600 dark:text-gray-400">Items subtotal</span>
-                                <span className="font-medium text-gray-800 dark:text-gray-200">{formatCents(itemSubtotal)}</span>
+                        <div className="px-4 pt-3 pb-3.5 bg-sw-sunk border-t border-sw-line flex-none">
+                            <div className="flex justify-between text-[12.5px] text-sw-muted mb-0.5">
+                                <span>Items</span>
+                                <span className="sw-num">
+                                    {formatCents(reconciliation.itemsSum)}
+                                </span>
                             </div>
                             {tax != null && tax > 0 && (
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600 dark:text-gray-400">Tax (from receipt)</span>
-                                    <span className="text-gray-600 dark:text-gray-400">{formatCents(tax)}</span>
+                                <div className="flex justify-between text-[12.5px] text-sw-muted mb-0.5">
+                                    <span>Tax</span>
+                                    <span className="sw-num">{formatCents(tax)}</span>
                                 </div>
                             )}
                             {tip != null && tip > 0 && (
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600 dark:text-gray-400">Tip (from receipt)</span>
-                                    <span className="text-gray-600 dark:text-gray-400">{formatCents(tip)}</span>
+                                <div className="flex justify-between text-[12.5px] text-sw-muted mb-2">
+                                    <span>Tip</span>
+                                    <span className="sw-num">{formatCents(tip)}</span>
                                 </div>
                             )}
                             {total != null && (
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600 dark:text-gray-400">Receipt total</span>
-                                    <span className="text-gray-600 dark:text-gray-400">{formatCents(total)}</span>
+                                <div className="flex justify-between text-[15px] font-medium mb-3">
+                                    <span>Receipt total</span>
+                                    <span className="sw-num">{formatCents(total)}</span>
                                 </div>
                             )}
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex justify-end space-x-3 mt-4">
-                            <button
-                                onClick={handleRescan}
-                                className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                            >
-                                Re-scan
-                            </button>
-                            <button
+                            <Button
+                                variant="primary"
+                                block
                                 onClick={handleConfirm}
                                 disabled={items.length === 0}
-                                className={`px-4 py-2 text-white rounded ${
-                                    items.length === 0
-                                        ? 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed'
-                                        : 'bg-teal-500 hover:bg-teal-600'
-                                }`}
+                                className="min-h-[46px]"
                             >
-                                Confirm Items ({items.length})
-                            </button>
+                                Next — who had what
+                                <ArrowRight size={16} />
+                            </Button>
                         </div>
-                    </div>
+                    </>
                 )}
             </div>
         </div>
