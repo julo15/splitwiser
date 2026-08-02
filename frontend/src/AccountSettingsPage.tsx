@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePageTitle } from './hooks/usePageTitle';
 import { api } from './services/api';
+import { getErrorMessage } from './utils/errors';
 
 interface UserProfile {
   id: number;
@@ -94,7 +95,7 @@ const AccountSettingsPage = () => {
         const error = await response.json();
         setRequestError(error.detail || 'Failed to accept request');
       }
-    } catch (error) {
+    } catch {
       setRequestError('Failed to accept request');
     }
   };
@@ -111,7 +112,7 @@ const AccountSettingsPage = () => {
         const error = await response.json();
         setRequestError(error.detail || 'Failed to reject request');
       }
-    } catch (error) {
+    } catch {
       setRequestError('Failed to reject request');
     }
   };
@@ -128,7 +129,7 @@ const AccountSettingsPage = () => {
         const error = await response.json();
         setRequestError(error.detail || 'Failed to cancel request');
       }
-    } catch (error) {
+    } catch {
       setRequestError('Failed to cancel request');
     }
   };
@@ -184,8 +185,8 @@ const AccountSettingsPage = () => {
 
       // Reload profile
       await loadProfile();
-    } catch (error: any) {
-      setProfileError(error.message || 'Failed to update profile');
+    } catch (error) {
+      setProfileError(getErrorMessage(error) || 'Failed to update profile');
     } finally {
       setIsProfileLoading(false);
     }
@@ -217,8 +218,8 @@ const AccountSettingsPage = () => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (error: any) {
-      setPasswordError(error.message || 'Failed to change password');
+    } catch (error) {
+      setPasswordError(getErrorMessage(error) || 'Failed to change password');
     } finally {
       setIsPasswordLoading(false);
     }
@@ -232,8 +233,8 @@ const AccountSettingsPage = () => {
     try {
       const response = await api.profile.resendVerificationEmail();
       setResendSuccess(response.message || 'Verification email has been resent. Please check your inbox.');
-    } catch (error: any) {
-      setResendError(error.message || 'Failed to resend verification email');
+    } catch (error) {
+      setResendError(getErrorMessage(error) || 'Failed to resend verification email');
     } finally {
       setIsResendingEmail(false);
     }

@@ -13,7 +13,8 @@ import type {
     GroupMember,
     GuestMember,
     Participant,
-    SplitType
+    SplitType,
+    ExpensePayload
 } from './types/expense';
 import {
     getParticipantName as getParticipantNameUtil
@@ -161,7 +162,7 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                 data = await expensesApi.getById(expenseId!);
             }
             setExpense(data);
-        } catch (err) {
+        } catch {
             setError('Failed to load expense details');
         } finally {
             setIsLoading(false);
@@ -372,7 +373,7 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             return;
         }
 
-        const payload: any = {
+        const payload: ExpensePayload = {
             description,
             amount: totalAmountCents,
             currency,
@@ -395,7 +396,7 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                     itemizedExpense.tipAmount,
                 );
 
-                const itemizedPayload: any = {
+                const itemizedPayload: ExpensePayload = {
                     description,
                     amount: itemsTotal,
                     currency,

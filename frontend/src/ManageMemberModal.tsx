@@ -73,7 +73,7 @@ const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
                 const err = await response.json();
                 setError(err.detail || 'Failed to set manager');
             }
-        } catch (error) {
+        } catch {
             setError('Network error. Please try again.');
         } finally {
             setIsSubmitting(false);
@@ -94,7 +94,7 @@ const ManageMemberModal: React.FC<ManageMemberModalProps> = ({
                 const err = await response.json();
                 setError(err.detail || 'Failed to remove manager');
             }
-        } catch (error) {
+        } catch {
             setError('Network error. Please try again.');
         } finally {
             setIsSubmitting(false);

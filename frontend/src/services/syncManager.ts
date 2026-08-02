@@ -1,5 +1,6 @@
 import { db, type PendingOperation } from '../db';
 import { API_BASE_URL } from '../config';
+import type { CachedGroup, CachedExpense, CachedBalance } from '../db/schema';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'conflict';
 
@@ -266,10 +267,12 @@ class SyncManager {
     }
   }
 
-  private async resolveTempIds(payload: any): Promise<any> {
+  private async resolveTempIds(payload: unknown): Promise<unknown> {
     if (typeof payload !== 'object' || payload === null) return payload;
 
-    const resolved: any = Array.isArray(payload) ? [] : {};
+    // Indexed by string key for both shapes; for an array the numeric keys
+    // still land in the right slots at runtime.
+    const resolved = (Array.isArray(payload) ? [] : {}) as Record<string, unknown>;
 
     for (const [key, value] of Object.entries(payload)) {
       if (typeof value === 'string' && value.match(/^[0-9a-f-]{36}$/)) {
@@ -340,7 +343,7 @@ class SyncManager {
         const nonTempGroups = await db.groups.filter(g => !g.is_temp).toArray();
         await db.groups.bulkDelete(nonTempGroups.map(g => g.id));
         await db.groups.bulkAdd(
-          groups.map((g: any) => ({
+          groups.map((g: Omit<CachedGroup, 'cached_at' | 'is_temp'>) => ({
             ...g,
             cached_at: Date.now(),
             is_temp: false
@@ -360,7 +363,7 @@ class SyncManager {
         const nonTempExpenses = await db.expenses.filter(e => !e.is_temp).toArray();
         await db.expenses.bulkDelete(nonTempExpenses.map(e => e.id));
         await db.expenses.bulkAdd(
-          expenses.map((e: any) => ({
+          expenses.map((e: Omit<CachedExpense, 'cached_at' | 'is_temp' | 'local_version'>) => ({
             ...e,
             cached_at: Date.now(),
             is_temp: false,
@@ -379,7 +382,7 @@ class SyncManager {
         const data = await response.json();
         await db.balances.clear();
         await db.balances.bulkAdd(
-          data.balances.map((b: any) => ({
+          data.balances.map((b: Omit<CachedBalance, 'key' | 'cached_at'>) => ({
             ...b,
             key: `${b.user_id}_${b.currency}_${b.is_guest}`,
             cached_at: Date.now()

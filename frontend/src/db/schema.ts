@@ -125,7 +125,8 @@ export interface PendingOperation {
     | 'REMOVE_GUEST';
   entity_type: 'expense' | 'group' | 'member' | 'guest';
   entity_id: number | string;
-  payload: any;
+  // Heterogeneous per operation type; syncManager walks it structurally.
+  payload: unknown;
   created_at: number;
   retry_count: number;
   last_error?: string;

@@ -59,7 +59,7 @@ const Login = () => {
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('refreshToken', data.refresh_token);
       window.location.href = returnTo;
-    } catch (err) {
+    } catch {
       setError('Invalid credentials');
     } finally {
       setIsLoading(false);

@@ -19,7 +19,7 @@ const ForgotPasswordPage = () => {
     try {
       await api.profile.forgotPassword(email);
       setIsSuccess(true);
-    } catch (err) {
+    } catch {
       setError('Failed to send reset email. Please try again.');
     } finally {
       setIsLoading(false);

@@ -41,12 +41,6 @@ const Dashboard = () => {
   // Set dynamic page title
   usePageTitle('Dashboard');
 
-  useEffect(() => {
-    fetchFriends();
-    fetchGroups();
-    fetchBalances();
-  }, []);
-
   const fetchFriends = async () => {
     try {
       const data = await friendsApi.getAll();
@@ -75,6 +69,14 @@ const Dashboard = () => {
       console.error('Failed to fetch balances:', error);
     }
   };
+
+  // Declared after the fetchers above so they are initialised before the
+  // effect body can reference them.
+  useEffect(() => {
+    fetchFriends();
+    fetchGroups();
+    fetchBalances();
+  }, []);
 
   // Re-fetch balances when toggle changes
   useEffect(() => {

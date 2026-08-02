@@ -53,7 +53,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({ isOpen, onClose, onMemb
                 const err = await response.json();
                 setError(err.detail || 'Failed to add member');
             }
-        } catch (error) {
+        } catch {
             setError('Network error. Please try again.');
         } finally {
             setIsSubmitting(false);

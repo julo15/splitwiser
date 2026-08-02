@@ -145,14 +145,35 @@ Conventions:
 - Outbound calls (Frankfurter exchange rates, Brevo email, LLM receipt
   scanning) are mocked; the suite runs offline.
 
-CI runs both suites as two parallel jobs on Python 3.11 / Node 20, matching
-the production image:
-- `.github/workflows/_tests.yml` — the reusable suite definition. Edit this
-  to change how tests run; it is never triggered on its own.
+### Linting
+
+```bash
+cd frontend
+npm run lint      # report everything
+npm run lint:ci   # what CI runs: fails on any error, or >19 warnings
+```
+
+The codebase is free of ESLint errors and of `any`. Two rules are set to
+`warn` in `eslint.config.js` because their remaining violations need
+structural changes rather than local edits — see the comments there for the
+reasoning:
+- `react-hooks/set-state-in-effect` (fetch-on-mount, reset-modal-on-open)
+- `react-refresh/only-export-components` (context modules, app entry point)
+
+Those plus `react-hooks/exhaustive-deps` make up the 19 accepted warnings.
+`lint:ci` caps the count so the backlog cannot grow; lower the ceiling in
+`package.json` as warnings are worked off.
+
+### Continuous integration
+
+CI runs on Python 3.11 / Node 20, matching the production image:
+- `.github/workflows/_tests.yml` — the reusable check definition (backend
+  tests, frontend tests, frontend lint). Edit this to change how the checks
+  run; it is never triggered on its own.
 - `.github/workflows/tests.yml` — calls it for pull requests into `main`.
 - `.github/workflows/deploy.yml` — calls it as a gate before deploying to
   Fly.io, so a push to `main` (or a manual deploy of another branch) only
-  ships when both suites pass on that exact ref.
+  ships when all three checks pass on that exact ref.
 
 ### Database Migrations
 When schema changes are made, update the SQLite database:

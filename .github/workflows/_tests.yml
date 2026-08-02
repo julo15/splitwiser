@@ -49,6 +49,34 @@ jobs:
         working-directory: backend
         run: pytest tests/ -v --cov=. --cov-report=term-missing
 
+  lint:
+    name: Frontend (eslint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # Fails on any error, and on more than the 19 warnings currently
+      # accepted — so the known backlog cannot grow. Lower the ceiling in
+      # package.json as those are worked off.
+      - name: Run ESLint
+        working-directory: frontend
+        run: npm run lint:ci
+
   frontend:
     name: Frontend (vitest)
     runs-on: ubuntu-latest
