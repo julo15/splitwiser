@@ -8,7 +8,13 @@ import { formatMoney } from '../../utils/formatters';
  */
 export const MINUS = '−';
 
-export type MoneyTone = 'auto' | 'positive' | 'negative' | 'default' | 'muted';
+export type MoneyTone =
+    | 'auto'
+    | 'positive'
+    | 'negative'
+    | 'default'
+    | 'muted'
+    | 'dim';
 
 export interface MoneyProps {
     /** Amount in cents, as stored throughout the app. */
@@ -33,6 +39,9 @@ const TONE_CLASS: Record<Exclude<MoneyTone, 'auto'>, string> = {
     negative: 'text-sw-neg',
     default: 'text-sw-text',
     muted: 'text-sw-muted',
+    // A figure that is real but not yet settled — a total for someone who is
+    // still picking, say.
+    dim: 'text-sw-dim',
 };
 
 function resolveTone(tone: MoneyTone, amount: number): string {

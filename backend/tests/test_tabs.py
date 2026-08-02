@@ -552,3 +552,113 @@ class TestSelfClaim:
             headers=headers,
         )
         assert response.status_code == 409
+
+
+class TestOwnerSetsClaims:
+    """
+    The desktop board is a grid of every item against every person. Someone at
+    the table always leaves early or never opens the link, so the owner has to
+    be able to tick on their behalf.
+    """
+
+    def join(self, client, tab, name):
+        response = client.post(
+            f"/public/tabs/{tab['share_token']}/join",
+            json={"display_name": name},
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["participant"]["id"]
+
+    def test_the_owner_can_claim_for_someone_else(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        maya = self.join(client, tab, "Maya")
+        item_id = tab["items"][0]["id"]
+
+        response = client.post(
+            f"/tabs/{tab['id']}/items/{item_id}/claim/{maya}",
+            json={"claimed": True},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        item = next(i for i in response.json()["items"] if i["id"] == item_id)
+        assert item["claimed_by"] == [maya]
+
+    def test_the_owner_can_release_someone_elses_claim(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        maya = self.join(client, tab, "Maya")
+        item_id = tab["items"][0]["id"]
+
+        client.post(
+            f"/tabs/{tab['id']}/items/{item_id}/claim/{maya}",
+            json={"claimed": True},
+            headers=headers,
+        )
+        body = client.post(
+            f"/tabs/{tab['id']}/items/{item_id}/claim/{maya}",
+            json={"claimed": False},
+            headers=headers,
+        ).json()
+
+        item = next(i for i in body["items"] if i["id"] == item_id)
+        assert item["claimed_by"] == []
+
+    def test_setting_a_claim_twice_is_idempotent(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        maya = self.join(client, tab, "Maya")
+        item_id = tab["items"][0]["id"]
+
+        for _ in range(3):
+            body = client.post(
+                f"/tabs/{tab['id']}/items/{item_id}/claim/{maya}",
+                json={"claimed": True},
+                headers=headers,
+            ).json()
+
+        item = next(i for i in body["items"] if i["id"] == item_id)
+        assert item["claimed_by"] == [maya]
+
+    def test_a_participant_cannot_claim_for_another_participant(self, client):
+        """
+        The route is owner-only. A signed-in participant who is not the owner
+        gets the same 404 a stranger would.
+        """
+        owner = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, owner)
+        maya = self.join(client, tab, "Maya")
+        other = register(client, "ben@example.com", "Ben Ortiz")
+
+        response = client.post(
+            f"/tabs/{tab['id']}/items/{tab['items'][0]['id']}/claim/{maya}",
+            json={"claimed": True},
+            headers=other,
+        )
+        assert response.status_code == 404
+
+    def test_a_participant_from_another_tab_is_refused(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        mine = make_tab(client, headers)
+        theirs = make_tab(client, headers, name="Mission Bowl")
+        outsider = self.join(client, theirs, "Dani")
+
+        response = client.post(
+            f"/tabs/{mine['id']}/items/{mine['items'][0]['id']}/claim/{outsider}",
+            json={"claimed": True},
+            headers=headers,
+        )
+        assert response.status_code == 404
+
+    def test_a_closed_tab_refuses_owner_claims_too(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        maya = self.join(client, tab, "Maya")
+        client.post(f"/tabs/{tab['id']}/close", json={}, headers=headers)
+
+        response = client.post(
+            f"/tabs/{tab['id']}/items/{tab['items'][0]['id']}/claim/{maya}",
+            json={"claimed": True},
+            headers=headers,
+        )
+        assert response.status_code == 409

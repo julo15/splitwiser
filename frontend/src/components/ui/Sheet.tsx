@@ -66,7 +66,7 @@ const Sheet: React.FC<SheetProps> = ({
                 aria-modal="true"
                 aria-label={label}
                 tabIndex={-1}
-                className={`relative bg-sw-bg rounded-t-sw-sheet px-4 pt-3 pb-3.5 flex flex-col gap-[9px] max-h-[88vh] overflow-auto shadow-[0_-12px_40px_rgba(0,0,0,.5)] focus:outline-none ${className}`.trim()}
+                className={`relative w-full mx-auto bg-sw-bg rounded-t-sw-sheet px-4 pt-3 pb-3.5 flex flex-col gap-[9px] max-h-[88vh] overflow-auto shadow-[0_-12px_40px_rgba(0,0,0,.5)] focus:outline-none ${className}`.trim()}
             >
                 <div
                     className="w-[38px] h-1 rounded-sm bg-sw-line mx-auto mb-1 flex-none"

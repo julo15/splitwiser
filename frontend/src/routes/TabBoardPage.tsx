@@ -1,12 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Plus, ShareNetwork, Trash } from '@phosphor-icons/react';
-import { Avatar, Button, Card, Money } from '../components/ui';
+import {
+    ArrowLeft,
+    Check,
+    Plus,
+    QrCode as QrCodeIcon,
+    ShareNetwork,
+    Trash,
+} from '@phosphor-icons/react';
+import { Avatar, Button, Card, Money, Sheet } from '../components/ui';
 import ClaimerStack from '../components/tab/ClaimerStack';
+import TabBoardDesktop from '../components/tab/TabBoardDesktop';
+import QrCode from '../components/tab/QrCode';
 import { useAuth } from '../AuthContext';
+import { useIsDesktop } from '../hooks/useMediaQuery';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { tabsApi } from '../services/api';
-import { claimedTotal, unclaimedTotal } from '../utils/tabShares';
+import { claimedTotal, computeTabShares, unclaimedTotal } from '../utils/tabShares';
 import type { Tab, TabItem } from '../types/tab';
 
 /** How often the board re-reads while people are still claiming. */
@@ -22,6 +32,7 @@ const TabBoardPage: React.FC = () => {
     const { tabId } = useParams<{ tabId: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();
+    const isDesktop = useIsDesktop();
 
     const [tab, setTab] = useState<Tab | null>(null);
     const [loading, setLoading] = useState(true);
@@ -30,6 +41,7 @@ const TabBoardPage: React.FC = () => {
     const [newDescription, setNewDescription] = useState('');
     const [newPrice, setNewPrice] = useState('');
     const [copied, setCopied] = useState(false);
+    const [qrOpen, setQrOpen] = useState(false);
 
     usePageTitle(tab?.name ?? 'Tab');
 
@@ -88,6 +100,19 @@ const TabBoardPage: React.FC = () => {
     const outstanding = unclaimedTotal(shareItems);
     const billTotal = spokenFor + outstanding + (tab?.tax ?? 0) + (tab?.tip ?? 0);
 
+    // What each person would owe if the tab closed right now. The server runs
+    // the same computation at close, so this is a preview and not a guess.
+    const shares = useMemo(
+        () =>
+            computeTabShares(
+                shareItems,
+                (tab?.participants ?? []).map((p) => p.id),
+                tab?.tax ?? 0,
+                tab?.tip ?? 0
+            ),
+        [shareItems, tab?.participants, tab?.tax, tab?.tip]
+    );
+
     const shareLink = tab?.share_token
         ? `${window.location.origin}/t/${tab.share_token}`
         : null;
@@ -113,26 +138,55 @@ const TabBoardPage: React.FC = () => {
 
     const handleAddItem = async (event: React.FormEvent) => {
         event.preventDefault();
-        if (id === undefined) return;
         const cents = Math.round(parseFloat(newPrice || '0') * 100);
         if (!newDescription.trim() || !Number.isFinite(cents) || cents <= 0) return;
 
-        try {
-            setTab(await tabsApi.addItem(id, newDescription.trim(), cents));
-            setNewDescription('');
-            setNewPrice('');
-            setAdding(false);
-        } catch {
-            setError('Could not add that item');
-        }
+        await addItem(newDescription.trim(), cents);
+        setNewDescription('');
+        setNewPrice('');
+        setAdding(false);
     };
 
     const toggleMine = async (itemId: number, claimed: boolean) => {
         if (id === undefined) return;
         try {
             setTab(await tabsApi.claimOwn(id, itemId, claimed));
+            setError(null);
         } catch {
             setError('Could not update that item');
+        }
+    };
+
+    /**
+     * Tick any cell in the grid. Own claims go through the self-claim route so
+     * the host is treated as a participant rather than an administrator of
+     * themselves; everyone else's go through the owner route.
+     */
+    const setClaim = async (
+        itemId: number,
+        participantId: number,
+        claimed: boolean
+    ) => {
+        if (id === undefined) return;
+        try {
+            setTab(
+                participantId === me?.id
+                    ? await tabsApi.claimOwn(id, itemId, claimed)
+                    : await tabsApi.setClaim(id, itemId, participantId, claimed)
+            );
+            setError(null);
+        } catch {
+            setError('Could not update that item');
+        }
+    };
+
+    const addItem = async (description: string, cents: number) => {
+        if (id === undefined) return;
+        try {
+            setTab(await tabsApi.addItem(id, description, cents));
+            setError(null);
+        } catch {
+            setError('Could not add that item');
         }
     };
 
@@ -161,6 +215,52 @@ const TabBoardPage: React.FC = () => {
                     Back
                 </Button>
             </div>
+        );
+    }
+
+    /**
+     * The link as something to point a phone at. Everyone is at the same table,
+     * so a code on the host's screen beats sending four messages.
+     */
+    const qrSheet = shareLink && (
+        <Sheet
+            open={qrOpen}
+            onClose={() => setQrOpen(false)}
+            label="Tab link"
+            title="Point a camera at this"
+            className="lg:max-w-[420px] lg:rounded-b-sw-sheet lg:mb-6"
+        >
+            <div className="flex justify-center">
+                <QrCode value={shareLink} size={224} />
+            </div>
+            <p className="text-[12.5px] text-sw-muted text-center break-all">
+                {shareLink}
+            </p>
+            <Button variant="secondary" block onClick={handleShare}>
+                {copied ? 'Copied' : 'Copy the link instead'}
+            </Button>
+        </Sheet>
+    );
+
+    if (isDesktop) {
+        return (
+            <>
+                <TabBoardDesktop
+                    tab={tab}
+                    meId={me?.id ?? null}
+                    shares={shares}
+                    claimed={spokenFor}
+                    unclaimed={outstanding}
+                    billTotal={billTotal}
+                    error={error}
+                    onToggleClaim={setClaim}
+                    onAddItem={addItem}
+                    onDeleteItem={handleDeleteItem}
+                    onShowQr={() => setQrOpen(true)}
+                    onClose={() => navigate(`/tabs/${tab.id}/close`)}
+                />
+                {qrSheet}
+            </>
         );
     }
 
@@ -275,14 +375,24 @@ const TabBoardPage: React.FC = () => {
                     </div>
                 </div>
                 {tab.status === 'open' && (
-                    <Button
-                        variant="secondary"
-                        onClick={handleShare}
-                        icon={<ShareNetwork size={15} />}
-                        className="ml-auto flex-none"
-                    >
-                        {copied ? 'Copied' : 'Send link'}
-                    </Button>
+                    <div className="ml-auto flex items-center gap-1.5 flex-none">
+                        {shareLink && (
+                            <Button
+                                variant="ghost"
+                                onClick={() => setQrOpen(true)}
+                                aria-label="Show the tab as a QR code"
+                            >
+                                <QrCodeIcon size={17} />
+                            </Button>
+                        )}
+                        <Button
+                            variant="secondary"
+                            onClick={handleShare}
+                            icon={<ShareNetwork size={15} />}
+                        >
+                            {copied ? 'Copied' : 'Send link'}
+                        </Button>
+                    </div>
                 )}
             </div>
 
@@ -442,6 +552,8 @@ const TabBoardPage: React.FC = () => {
                     </p>
                 </div>
             )}
+
+            {qrSheet}
         </>
     );
 };

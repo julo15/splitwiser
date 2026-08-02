@@ -343,6 +343,74 @@ def claim_own_tab_item(
     return _tab_out(db, tab)
 
 
+@router.post(
+    "/tabs/{tab_id}/items/{item_id}/claim/{participant_id}",
+    response_model=schemas.TabOut,
+)
+def set_tab_item_claim(
+    tab_id: int,
+    item_id: int,
+    participant_id: int,
+    payload: schemas.TabSelfClaimRequest,
+    current_user: Annotated[models.User, Depends(get_current_user)],
+    db: Session = Depends(get_db),
+):
+    """
+    Set any participant's claim on a line. Owner only.
+
+    Not every claim happens on a phone: someone leaves early, someone never
+    opens the link, someone just says "that was mine" across the table. The
+    owner can already close the tab and decide who paid, so letting them tick
+    a box on another participant's behalf grants nothing they did not have —
+    and without it the desktop board is a grid you can only read.
+    """
+    tab = _load_tab_for_owner(db, tab_id, current_user.id)
+
+    if tab.status != "open":
+        raise HTTPException(status_code=409, detail="This tab is already closed")
+
+    participant = (
+        db.query(models.TabParticipant)
+        .filter(
+            models.TabParticipant.id == participant_id,
+            models.TabParticipant.tab_id == tab.id,
+        )
+        .first()
+    )
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    item = (
+        db.query(models.TabItem)
+        .filter(models.TabItem.id == item_id, models.TabItem.tab_id == tab.id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    existing = (
+        db.query(models.TabItemClaim)
+        .filter(
+            models.TabItemClaim.item_id == item.id,
+            models.TabItemClaim.participant_id == participant.id,
+        )
+        .first()
+    )
+
+    if payload.claimed and not existing:
+        db.add(
+            models.TabItemClaim(
+                tab_id=tab.id, item_id=item.id, participant_id=participant.id
+            )
+        )
+        db.commit()
+    elif not payload.claimed and existing:
+        db.delete(existing)
+        db.commit()
+
+    return _tab_out(db, tab)
+
+
 @router.post("/tabs/{tab_id}/revoke", response_model=schemas.TabOut)
 def revoke_tab_link(
     tab_id: int,

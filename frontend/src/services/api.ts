@@ -561,6 +561,22 @@ export const tabsApi = {
         return response.json();
     },
 
+    // Owner-only: tick a line on someone else's behalf. Somebody at the table
+    // always leaves early or never opens the link.
+    setClaim: async (
+        tabId: number,
+        itemId: number,
+        participantId: number,
+        claimed: boolean
+    ) => {
+        const response = await apiFetch(
+            `/tabs/${tabId}/items/${itemId}/claim/${participantId}`,
+            { method: 'POST', body: JSON.stringify({ claimed }) }
+        );
+        if (!response.ok) throw new Error('Could not update that item');
+        return response.json();
+    },
+
     revoke: async (tabId: number) => {
         const response = await apiFetch(`/tabs/${tabId}/revoke`, { method: 'POST' });
         if (!response.ok) throw new Error('Failed to revoke the link');
