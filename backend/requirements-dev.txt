@@ -1,0 +1,13 @@
+# Test and development dependencies.
+# Install alongside the runtime deps:
+#   pip install -r requirements.txt -r requirements-dev.txt
+
+pytest
+pytest-cov
+# Required by starlette's TestClient, which the integration tests drive the app through.
+httpx
+
+# Static analysis. Config lives in backend/ruff.toml.
+ruff
+# Dependency vulnerability scanning; see .github/workflows/audit.yml.
+pip-audit

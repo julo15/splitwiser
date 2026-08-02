@@ -39,7 +39,7 @@ const SendFriendRequestModal: React.FC<SendFriendRequestModalProps> = ({
                 const err = await response.json();
                 setError(err.detail || 'Failed to send friend request');
             }
-        } catch (err) {
+        } catch {
             setError('Network error. Please try again.');
         } finally {
             setIsSubmitting(false);

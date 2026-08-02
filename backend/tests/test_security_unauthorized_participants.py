@@ -1,8 +1,9 @@
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from models import User, Group, GroupMember, Friendship
+
 from auth import create_access_token, get_password_hash
+from models import Group, GroupMember, User
+
 
 def create_user(db: Session, email: str, name: str) -> User:
     user = User(

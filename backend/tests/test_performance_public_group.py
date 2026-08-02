@@ -1,9 +1,10 @@
 
-import pytest
-from sqlalchemy import event
-from models import Group, GuestMember, Expense, ExpenseSplit, ExpenseItem, ExpenseItemAssignment, User, GroupMember
-from auth import get_password_hash
 import uuid
+
+from sqlalchemy import event
+
+from models import Expense, ExpenseItem, ExpenseItemAssignment, ExpenseSplit, Group, GroupMember, GuestMember
+
 
 def test_get_public_expense_detail_n_plus_one(client, db_session, auth_headers, test_user):
     # 1. Setup: Create a group and make it public

@@ -18,8 +18,8 @@ import sys
 
 sys.path.insert(0, '/app')
 
-from database import SessionLocal
 import models
+from database import SessionLocal
 
 
 def find_problematic_guests(db):
@@ -81,10 +81,10 @@ def main():
                 if group_member.managed_by_id:
                     print(f"    User's GroupMember: managed_by_id={group_member.managed_by_id}, type={group_member.managed_by_type}")
                 else:
-                    print(f"    User's GroupMember: NOT managed (managed_by_id is None)")
-                    print(f"    WARNING: Management relationship will be lost when clearing guest's managed_by_id!")
+                    print("    User's GroupMember: NOT managed (managed_by_id is None)")
+                    print("    WARNING: Management relationship will be lost when clearing guest's managed_by_id!")
             else:
-                print(f"    WARNING: User has no GroupMember record in this group!")
+                print("    WARNING: User has no GroupMember record in this group!")
 
             print()
 

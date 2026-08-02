@@ -18,6 +18,7 @@ import SendFriendRequestModal from './SendFriendRequestModal';
 import ExpenseListItem from './components/ExpenseListItem';
 import SummarySection from './components/summary/SummarySection';
 import { formatMoney } from './utils/formatters';
+import { getErrorMessage, getErrorName } from './utils/errors';
 
 interface GroupMember {
     id: number;
@@ -319,10 +320,11 @@ const GroupDetailPage: React.FC = () => {
                 // Fetch balances separately to use conversion parameter
                 await fetchBalances(showInGroupCurrency ? groupData.default_currency : undefined);
             }
-        } catch (err: any) {
-            if (err.message?.includes('404') || err.message?.includes('not found')) {
+        } catch (err) {
+            const message = getErrorMessage(err);
+            if (message?.includes('404') || message?.includes('not found')) {
                 setError('Group not found');
-            } else if (err.message?.includes('403')) {
+            } else if (message?.includes('403')) {
                 setError('You are not a member of this group');
             } else {
                 setError('Failed to load group data');
@@ -381,7 +383,7 @@ const GroupDetailPage: React.FC = () => {
                     type: 'error'
                 });
             }
-        } catch (error) {
+        } catch {
             setAlertDialog({
                 isOpen: true,
                 title: 'Error',
@@ -410,7 +412,7 @@ const GroupDetailPage: React.FC = () => {
                     type: 'error'
                 });
             }
-        } catch (error) {
+        } catch {
             setAlertDialog({
                 isOpen: true,
                 title: 'Error',
@@ -435,7 +437,7 @@ const GroupDetailPage: React.FC = () => {
                     type: 'error'
                 });
             }
-        } catch (error) {
+        } catch {
             setAlertDialog({
                 isOpen: true,
                 title: 'Error',
@@ -479,9 +481,9 @@ const GroupDetailPage: React.FC = () => {
                             url: shareUrl
                         });
                         return; // Success - no alert needed
-                    } catch (shareErr: any) {
+                    } catch (shareErr) {
                         // User cancelled or share failed, fall through to clipboard
-                        if (shareErr.name === 'AbortError') {
+                        if (getErrorName(shareErr) === 'AbortError') {
                             return; // User cancelled, don't show error
                         }
                     }
@@ -531,7 +533,7 @@ const GroupDetailPage: React.FC = () => {
                             type: 'alert'
                         });
                     }
-                } catch (execErr) {
+                } catch {
                     // Show the URL as last resort
                     setAlertDialog({
                         isOpen: true,

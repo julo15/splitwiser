@@ -5,10 +5,7 @@ These exercise the aggregation primitive directly — HTTP-endpoint tests for
 the authenticated and public routes are covered in Unit 3 / Unit 4.
 """
 
-from datetime import date, timedelta
-from unittest.mock import patch
-
-import pytest
+from datetime import date
 
 import models
 from auth import get_password_hash
@@ -19,7 +16,6 @@ from utils.summary import (
     _select_granularity,
     calculate_consumption_summary,
 )
-
 
 # --------------------------------------------------------------------------- #
 # Helpers for building fixtures directly against the DB session.              #

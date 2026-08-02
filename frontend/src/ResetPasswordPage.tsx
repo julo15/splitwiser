@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from './hooks/usePageTitle';
 import { api } from './services/api';
+import { getErrorMessage } from './utils/errors';
 
 const ResetPasswordPage = () => {
   const { token } = useParams<{ token: string }>();
@@ -56,8 +57,8 @@ const ResetPasswordPage = () => {
     try {
       await api.profile.resetPassword(token, newPassword);
       setIsSuccess(true);
-    } catch (err: any) {
-      setError(err.message || 'Failed to reset password. The link may have expired.');
+    } catch (err) {
+      setError(getErrorMessage(err) || 'Failed to reset password. The link may have expired.');
     } finally {
       setIsLoading(false);
     }

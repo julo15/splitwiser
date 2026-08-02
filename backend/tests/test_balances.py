@@ -1,11 +1,13 @@
 from datetime import date
-from models import User, Group, GroupMember, GuestMember
+
 from auth import get_password_hash
+from models import Group, GroupMember, GuestMember, User
 from utils.balances import (
     _detect_managed_cycles,
     _fold_managed_relationships,
     calculate_net_balances,
 )
+
 
 def test_simple_balance(client, auth_headers, db_session, test_user):
     # Setup: Group with 2 users

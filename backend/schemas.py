@@ -1,8 +1,10 @@
-from pydantic import BaseModel, EmailStr, field_validator, Field
-from typing import Optional, Dict, List, Literal
 from datetime import datetime
+from typing import Dict, Literal, Optional
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from utils.currency import VALID_CURRENCIES
+
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -467,7 +469,7 @@ class FriendExpenseWithSplits(ExpenseWithSplits):
 
 
 # Profile Management and Password Recovery Schemas
-from datetime import datetime
+
 
 class PasswordChangeRequest(BaseModel):
     """Request to change password (requires current password)"""

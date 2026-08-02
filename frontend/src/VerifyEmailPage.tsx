@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from './hooks/usePageTitle';
 import { api } from './services/api';
+import { getErrorMessage } from './utils/errors';
 
 const VerifyEmailPage = () => {
   const { token } = useParams<{ token: string }>();
@@ -28,8 +29,8 @@ const VerifyEmailPage = () => {
         setTimeout(() => {
           navigate('/account');
         }, 3000);
-      } catch (err: any) {
-        setError(err.message || 'Failed to verify email. The link may have expired.');
+      } catch (err) {
+        setError(getErrorMessage(err) || 'Failed to verify email. The link may have expired.');
       } finally {
         setIsLoading(false);
       }

@@ -1,6 +1,8 @@
 import pytest
 from pydantic import ValidationError
-from schemas import UserCreate, ExpenseCreate, GroupCreate, ExpenseSplitBase
+
+from schemas import ExpenseCreate, ExpenseSplitBase, GroupCreate, UserCreate
+
 
 def test_user_create_validation():
     long_string = "a" * 10001

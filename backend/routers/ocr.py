@@ -1,19 +1,19 @@
 """OCR router: LLM-based receipt scanning endpoint."""
 
-from typing import Annotated
+import io
 import os
 import uuid
-import io
+from typing import Annotated
+
 import fitz  # PyMuPDF
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from PIL import Image
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 
 import models
 from dependencies import get_current_user
 from ocr.llm_service import parse_receipt
-from utils.rate_limiter import ocr_rate_limiter
 from utils.files import read_upload_file_securely
-
+from utils.rate_limiter import ocr_rate_limiter
 
 # Receipt directory path
 DATA_DIR = os.getenv("DATA_DIR", "data")
@@ -51,7 +51,7 @@ def _rasterize_pdf(pdf_bytes: bytes) -> list[tuple[bytes, str]]:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     except Exception as exc:
         print(f"PDF open error: {exc}")
-        raise HTTPException(status_code=400, detail="Invalid PDF file.")
+        raise HTTPException(status_code=400, detail="Invalid PDF file.") from exc
 
     try:
         if doc.needs_pass:
@@ -79,7 +79,7 @@ def _rasterize_pdf(pdf_bytes: bytes) -> list[tuple[bytes, str]]:
                 pages.append((pixmap.tobytes("png"), "image/png"))
         except Exception as exc:
             print(f"PDF rasterization error: {exc}")
-            raise HTTPException(status_code=400, detail="Could not render PDF.")
+            raise HTTPException(status_code=400, detail="Could not render PDF.") from exc
         return pages
     finally:
         doc.close()
@@ -116,8 +116,8 @@ async def scan_receipt(
             image.verify()
         except HTTPException:
             raise
-        except Exception:
-            raise HTTPException(status_code=400, detail="Invalid image file.")
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="Invalid image file.") from exc
 
         if img_format not in FORMAT_MAP:
             raise HTTPException(
@@ -139,13 +139,13 @@ async def scan_receipt(
         result = parse_receipt(pages)
     except RuntimeError as exc:
         # Missing API key or config error
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
         print(f"LLM receipt parsing error: {exc}")
         raise HTTPException(
             status_code=502,
             detail="Receipt scanning service is temporarily unavailable. Please try again.",
-        )
+        ) from exc
 
     # Build response
     items = [

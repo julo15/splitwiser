@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Migration script to add friend_requests table."""
 
-import sqlite3
-import os
 import argparse
+import os
+import sqlite3
+from typing import Optional
 
 # Default database path (relative to backend directory)
 DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'db.sqlite3')
 
 
-def migrate(db_path: str = None):
+def migrate(db_path: Optional[str] = None):
     """Add friend_requests table to the database."""
     if db_path is None:
         db_path = DEFAULT_DB_PATH

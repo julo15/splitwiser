@@ -2,6 +2,7 @@
 Display utilities for guest and user names
 """
 from sqlalchemy.orm import Session
+
 import models
 
 

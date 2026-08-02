@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { api } from './services/api';
 import { formatDateForInput } from './utils/formatters';
 import AlertDialog from './components/AlertDialog';
+import type { ExpensePayload } from './types/expense';
 
 interface Friend {
     id: number;
@@ -64,12 +65,13 @@ const SettleUpModal: React.FC<SettleUpModalProps> = ({ isOpen, onClose, onSettle
 
         const totalAmountCents = Math.round(parseFloat(amount) * 100);
 
-        const payload = {
+        const payload: ExpensePayload = {
             description: "Settle Up",
             amount: totalAmountCents,
             currency,
             date: formatDateForInput(new Date()),
             payer_id: payerId, // Who is paying the money physically
+            payer_is_guest: false,
             group_id: null,
             split_type: 'EXACT',
             splits: [
@@ -95,7 +97,7 @@ const SettleUpModal: React.FC<SettleUpModalProps> = ({ isOpen, onClose, onSettle
                     type: 'error'
                 });
             }
-        } catch (error) {
+        } catch {
             setAlertDialog({
                 isOpen: true,
                 title: 'Error',

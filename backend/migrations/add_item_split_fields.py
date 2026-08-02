@@ -3,9 +3,9 @@
 Migration script to add split_type and split_details columns to expense_items table.
 """
 
+import os
 import sqlite3
 import sys
-import os
 
 # Get the database path from environment or use default
 DATA_DIR = os.getenv("DATA_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

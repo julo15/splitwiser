@@ -108,11 +108,97 @@ npm run lint  # Run ESLint
 ```
 
 ### Testing
+
+Backend (pytest, in-memory SQLite — no external services are contacted):
 ```bash
 cd backend
-pytest tests/test_main.py  # Run backend tests
-pytest tests/test_main.py::test_create_user -v  # Run single test
+source venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt  # test deps are in requirements-dev.txt
+pytest tests/                              # Run the whole suite
+pytest tests/test_expenses.py              # Run one file
+pytest tests/test_main.py::test_create_user -v  # Run a single test
+pytest tests/ --cov=. --cov-report=term-missing # With coverage
 ```
+
+Frontend (Vitest):
+```bash
+cd frontend
+npm run test        # Run once
+npm run test:watch  # Watch mode
+```
+
+Test layout:
+- `backend/tests/test_utils_*.py` — unit tests for pure logic (split maths,
+  validation, currency, display names, dates). No HTTP, no network.
+- `backend/tests/test_*.py` (others) — integration tests driving the real
+  FastAPI app through `TestClient` against a per-test in-memory database.
+- `backend/tests/test_performance_*.py` / `test_perf_*.py` — query-count
+  regression guards.
+- `frontend/src/**/__tests__/` — unit tests for pure utilities and hooks.
+
+Conventions:
+- Tests must not depend on execution order. Install FastAPI dependency
+  overrides via the `app_overrides` fixture rather than mutating
+  `app.dependency_overrides` directly, and never rebind that attribute — `app`
+  is a process-wide singleton and a leaked override silently authenticates
+  later tests as the wrong user.
+- Outbound calls (Frankfurter exchange rates, Brevo email, LLM receipt
+  scanning) are mocked; the suite runs offline.
+
+### Linting
+
+```bash
+cd frontend
+npm run lint      # report everything
+npm run lint:ci   # what CI runs: fails on any error, or >19 warnings
+```
+
+The codebase is free of ESLint errors and of `any`. Two rules are set to
+`warn` in `eslint.config.js` because their remaining violations need
+structural changes rather than local edits — see the comments there for the
+reasoning:
+- `react-hooks/set-state-in-effect` (fetch-on-mount, reset-modal-on-open)
+- `react-refresh/only-export-components` (context modules, app entry point)
+
+Those plus `react-hooks/exhaustive-deps` make up the 19 accepted warnings.
+`lint:ci` caps the count so the backlog cannot grow; lower the ceiling in
+`package.json` as warnings are worked off.
+
+### Backend static analysis
+
+```bash
+cd backend
+source venv/bin/activate
+ruff check .            # lint (config: backend/ruff.toml)
+ruff check . --fix      # apply safe autofixes
+pip-audit -r requirements.txt -r requirements-dev.txt  # dependency CVEs
+```
+
+Ruff runs a deliberately scoped starter set (`E4/E7/E9`, `F`, `I`, `B`,
+`RUF`) that the codebase holds at zero. `SIM` and `UP` are the natural next
+additions — see the comments in `ruff.toml` for what enabling them costs.
+Three ignores are framework requirements rather than style preferences, most
+importantly `E711`/`E712`: SQLAlchemy compiles `== None` / `== False` into
+SQL, and rewriting them to `is None` / `is False` silently breaks the query.
+
+`pip-audit` currently ignores PYSEC-2026-1325 in `ecdsa` (pulled in by
+python-jose). Upstream ships no fix, and it is unreachable here because JWTs
+use HS256 only — revisit if `auth.ALGORITHM` ever becomes an EC curve. The
+reasoning is recorded in `.github/workflows/audit.yml`.
+
+### Continuous integration
+
+CI runs on Python 3.11 / Node 20, matching the production image:
+- `.github/workflows/_tests.yml` — the reusable check definition (backend
+  tests, backend ruff, frontend tests, frontend eslint). Edit this to change
+  how the checks run; it is never triggered on its own.
+- `.github/workflows/tests.yml` — calls it for pull requests into `main`.
+- `.github/workflows/deploy.yml` — calls it as a gate before deploying to
+  Fly.io, so a push to `main` (or a manual deploy of another branch) only
+  ships when all four checks pass on that exact ref.
+- `.github/workflows/audit.yml` — `pip-audit`, on dependency-file changes and
+  weekly. Kept out of the deploy gate on purpose: a CVE disclosed upstream
+  should not block an unrelated hotfix from shipping.
 
 ### Database Migrations
 When schema changes are made, update the SQLite database:

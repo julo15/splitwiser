@@ -56,7 +56,7 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ isOpen, onClose, onFrie
                     setError('Failed to add friend');
                 }
             }
-        } catch (error) {
+        } catch {
             setError('Network error. Please try again.');
         } finally {
             setIsSubmitting(false);

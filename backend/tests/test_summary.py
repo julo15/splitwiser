@@ -11,9 +11,8 @@ heavy numeric coverage of the underlying aggregation primitive lives in
 from datetime import date
 from unittest.mock import patch
 
-from models import GroupMember, User
 from auth import get_password_hash
-
+from models import User
 
 # --------------------------------------------------------------------------- #
 # Small helpers — mirror the test_balances.py style of building fixtures via  #
@@ -593,6 +592,7 @@ def test_public_summary_cache_ttl_expiry_reinvokes_primitive(
     cache dict to age the entry past the TTL.
     """
     from unittest.mock import patch
+
     from utils import summary_cache
 
     _, share_link_id, _ = _create_shared_group_with_expense(
@@ -682,7 +682,7 @@ def test_public_summary_series_totals_match_authenticated_per_member_sum(
 
     # Same number of buckets + equal totals per bucket.
     assert len(auth_body["series"]) == len(public_body["series"])
-    for a, p in zip(auth_body["series"], public_body["series"]):
+    for a, p in zip(auth_body["series"], public_body["series"], strict=True):
         assert a["period_label"] == p["period_label"]
         per_member_sum = sum(pm["amount"] for pm in a["per_member"])
         assert a["total"] == per_member_sum
@@ -699,10 +699,10 @@ def test_public_summary_cache_race_unshare_mid_compute(
     and return 404 rather than caching a stale pre-unshare response that
     would be served for up to 60s.
     """
-    from utils import summary_cache
     import models as _models
+    from utils import summary_cache
 
-    group_id, share_link_id, _ = _create_shared_group_with_expense(
+    _, share_link_id, _ = _create_shared_group_with_expense(
         client, auth_headers, db_session, test_user
     )
 

@@ -5,17 +5,16 @@ These tests verify that the friend balance and expense list correctly
 include expenses where either friend is managing other group members/guests.
 """
 
-import pytest
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch
 
-from main import app
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from database import Base, get_db
-from models import User, Expense, ExpenseSplit, Friendship, Group, GroupMember, GuestMember
 from dependencies import get_current_user
+from main import app
+from models import Expense, ExpenseSplit, Friendship, Group, GroupMember, GuestMember, User
 
 # Setup in-memory DB for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -259,7 +258,7 @@ def test_friend_expenses_includes_managed_guest_expenses(client, session):
     )
 
     # User2 pays expense with Guest C (not directly with User1)
-    expense = create_expense(
+    create_expense(
         session,
         payer_id=user2.id,
         payer_is_guest=False,

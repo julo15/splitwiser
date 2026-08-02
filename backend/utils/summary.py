@@ -49,7 +49,6 @@ from utils.currency import convert_currency, convert_to_usd
 from utils.dates import normalize_date
 from utils.display import get_participant_display_name
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -215,7 +214,7 @@ def calculate_consumption_summary(
     expenses: List[models.Expense] = (
         db.query(models.Expense)
         .filter(models.Expense.group_id == group_id)
-        .filter(models.Expense.is_settlement != True)  # noqa: E712 — explicit SQL compare
+        .filter(models.Expense.is_settlement != True)
         .all()
     )
 
@@ -290,7 +289,7 @@ def calculate_consumption_summary(
         db.query(models.GuestMember)
         .filter(
             models.GuestMember.group_id == group_id,
-            models.GuestMember.managed_by_id != None,  # noqa: E711
+            models.GuestMember.managed_by_id != None,
         )
         .all()
     )
@@ -298,7 +297,7 @@ def calculate_consumption_summary(
         db.query(models.GroupMember)
         .filter(
             models.GroupMember.group_id == group_id,
-            models.GroupMember.managed_by_id != None,  # noqa: E711
+            models.GroupMember.managed_by_id != None,
         )
         .all()
     )
@@ -538,8 +537,8 @@ def calculate_consumption_summary(
     # ------------------------------------------------------------------
     # Build series[] with empty-period fill.
     # ------------------------------------------------------------------
-    min_label, min_start = _period_key(min_date, granularity)
-    max_label, max_start = _period_key(max_date, granularity)
+    _, min_start = _period_key(min_date, granularity)
+    _, max_start = _period_key(max_date, granularity)
 
     series: List[SummarySeriesPoint] = []
     cursor = min_start

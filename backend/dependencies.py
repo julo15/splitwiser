@@ -1,16 +1,15 @@
 """Shared dependencies for authentication and authorization."""
 
 from typing import Annotated
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-import models
-import schemas
 import auth
+import schemas
 from database import get_db
 from utils.validation import get_user_by_email
-
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -31,8 +30,8 @@ async def get_current_user(
         if email is None:
             raise credentials_exception
         token_data = schemas.TokenData(email=email)
-    except auth.JWTError:
-        raise credentials_exception
+    except auth.JWTError as err:
+        raise credentials_exception from err
     user = get_user_by_email(db, email=token_data.email)
     if user is None:
         raise credentials_exception
