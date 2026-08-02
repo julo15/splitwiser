@@ -9,6 +9,7 @@ from auth import create_access_token, get_password_hash
 from database import Base, get_db
 from main import app
 from models import User
+from routers.tabs import public_tab_rate_limiter, tab_join_rate_limiter
 
 # Import rate limiters to override them
 from utils.rate_limiter import (
@@ -129,7 +130,9 @@ def disable_rate_limits():
         password_reset_rate_limiter: mock_rate_limit,
         email_verification_rate_limiter: mock_rate_limit,
         profile_update_rate_limiter: mock_rate_limit,
-        summary_rate_limiter: mock_rate_limit
+        summary_rate_limiter: mock_rate_limit,
+        public_tab_rate_limiter: mock_rate_limit,
+        tab_join_rate_limiter: mock_rate_limit,
     }
 
     # Apply overrides

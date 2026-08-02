@@ -8,6 +8,7 @@ import {
     calculateSharesSplit,
     calculateItemizedTotal,
     calculatePersonItemBreakdown,
+    parseSplitValue,
 } from '../expenseCalculations';
 
 const user1: Participant = { id: 1, name: 'Alice', isGuest: false };
@@ -490,5 +491,73 @@ describe('calculatePersonItemBreakdown', () => {
             expect(Number.isNaN(i.shareAmount)).toBe(false);
             expect(Number.isNaN(i.percent)).toBe(false);
         });
+    });
+});
+
+/*
+ * The split-details field holds raw text — the input is type="text" so a
+ * decimal can be typed a character at a time. Everything unparseable that can
+ * reach these functions has to land on 0, because a NaN here rides into
+ * `amount_owed` and serialises as `null` in the request body.
+ */
+describe('parseSplitValue', () => {
+    it('reads a plain number', () => {
+        expect(parseSplitValue('12.50')).toBe(12.5);
+        expect(parseSplitValue('0.5')).toBe(0.5);
+    });
+
+    it('accepts a number as well as a string', () => {
+        expect(parseSplitValue(42)).toBe(42);
+    });
+
+    it('reads the leading number of a half-typed decimal', () => {
+        expect(parseSplitValue('12.')).toBe(12);
+        expect(parseSplitValue('.5')).toBe(0.5);
+    });
+
+    it('treats an empty or missing field as zero', () => {
+        expect(parseSplitValue('')).toBe(0);
+        expect(parseSplitValue('   ')).toBe(0);
+        expect(parseSplitValue(undefined)).toBe(0);
+    });
+
+    it('treats unparseable text as zero rather than NaN', () => {
+        expect(parseSplitValue('abc')).toBe(0);
+        expect(parseSplitValue('-')).toBe(0);
+    });
+});
+
+describe('non-numeric text never reaches an amount', () => {
+    // Regression: the field stopped coercing on keystroke, so 'abc' now
+    // arrives here verbatim. Every amount must still be a real number.
+    const participants = [user1, user2];
+    const finite = (splits: { amount_owed: number }[]) =>
+        splits.every((s) => Number.isFinite(s.amount_owed));
+
+    it('exact split', () => {
+        const { splits } = calculateExactSplit(10000, participants, {
+            user_1: 'abc',
+            user_2: '100',
+        });
+        expect(finite(splits)).toBe(true);
+        expect(splits[0].amount_owed).toBe(0);
+    });
+
+    it('percent split', () => {
+        const { splits } = calculatePercentSplit(10000, participants, {
+            user_1: 'abc',
+            user_2: '100',
+        });
+        expect(finite(splits)).toBe(true);
+    });
+
+    it('shares split — one bad entry must not poison the others', () => {
+        const { splits } = calculateSharesSplit(10000, participants, {
+            user_1: 'abc',
+            user_2: '2',
+        });
+        expect(finite(splits)).toBe(true);
+        // All the shares belong to the only participant who entered one.
+        expect(splits[1].amount_owed).toBe(10000);
     });
 });

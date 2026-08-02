@@ -54,6 +54,13 @@ async def update_profile(
         current_user.default_currency = profile_data.default_currency
         updated_fields.append("default_currency")
 
+    # Venmo handle. The validator normalises "@maya" to "maya" and turns a
+    # blank value into "", which is how the client asks for it to be removed —
+    # omitting the field entirely leaves the existing handle alone.
+    if profile_data.venmo_username is not None:
+        current_user.venmo_username = profile_data.venmo_username or None
+        updated_fields.append("venmo_username")
+
     # Handle email change with verification
     if profile_data.email is not None:
         # Check if new email is different

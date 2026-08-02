@@ -80,7 +80,7 @@ Background sync for pending operations:
 ## Custom Dialogs
 
 Replaced browser `alert()`, `prompt()`, and `confirm()` with custom modals:
-- **AddFriendModal** - Custom friend request dialog
+- **AddPersonSheet** - Adding a friend by email
 - **AddGuestModal** - Guest addition with validation
 - **DeleteGroupConfirm** - Confirmation dialogs with proper styling
 - Mobile-responsive with touch-friendly buttons

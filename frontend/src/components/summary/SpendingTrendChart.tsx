@@ -439,7 +439,7 @@ const SpendingTrendChart: React.FC<SpendingTrendChartProps> = (props) => {
                 {tooltip && tooltipContent && (
                     <div
                         role="tooltip"
-                        className="pointer-events-none absolute z-10 rounded-md bg-gray-900 px-3 py-2 text-xs text-white shadow-lg dark:bg-gray-100 dark:text-gray-900"
+                        className="pointer-events-none absolute z-10 rounded-sw-row bg-sw-surface text-sw-text px-3 py-2 text-xs shadow-[0_0_0_1px_var(--sw-line),0_8px_22px_rgba(0,0,0,.18)]"
                         style={{
                             left: Math.min(
                                 Math.max(tooltip.anchorX - 80, 4),
@@ -453,10 +453,10 @@ const SpendingTrendChart: React.FC<SpendingTrendChartProps> = (props) => {
                             maxWidth: 200,
                         }}
                     >
-                        <div className="font-semibold">{tooltipContent.title}</div>
+                        <div className="font-medium">{tooltipContent.title}</div>
                         <ul className="mt-1 space-y-0.5">
                             {tooltipContent.lines.map((line, i) => (
-                                <li key={i} className="tabular-nums">
+                                <li key={i} className="sw-num">
                                     {line}
                                 </li>
                             ))}
@@ -474,7 +474,7 @@ const SpendingTrendChart: React.FC<SpendingTrendChartProps> = (props) => {
                     {assignedSeries.map((def) => (
                         <li
                             key={seriesKey(def)}
-                            className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 min-h-[44px] sm:min-h-0"
+                            className="flex items-center gap-2 text-xs text-sw-muted min-h-[44px] sm:min-h-0"
                         >
                             <span
                                 aria-hidden="true"

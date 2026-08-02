@@ -1,10 +1,14 @@
+import re
 from datetime import datetime
-from typing import Dict, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from utils.currency import VALID_CURRENCIES
 
+# Venmo handles are letters, numbers, dashes and underscores. Length is checked
+# separately so the two failures can say different things.
+VENMO_USERNAME_RE = re.compile(r'[A-Za-z0-9_-]+')
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -249,6 +253,9 @@ class Friend(BaseModel):
     id: int
     full_name: str
     email: str
+    # Only ever returned to people you are already friends with, so settling up
+    # can hand them a pre-filled payment. Absent from every public payload.
+    venmo_username: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -493,6 +500,8 @@ class ProfileUpdateRequest(BaseModel):
     full_name: Optional[str] = Field(None, max_length=100)
     email: Optional[EmailStr] = None
     default_currency: Optional[str] = Field(None, min_length=3, max_length=3)
+    # Empty string clears it; see the validator.
+    venmo_username: Optional[str] = Field(None, max_length=31)
 
     @field_validator('default_currency')
     @classmethod
@@ -502,6 +511,36 @@ class ProfileUpdateRequest(BaseModel):
         if v not in VALID_CURRENCIES:
             raise ValueError(f'Currency must be one of {VALID_CURRENCIES}')
         return v
+
+    @field_validator('venmo_username')
+    @classmethod
+    def validate_venmo_username(cls, v):
+        """
+        Normalise a Venmo handle: strip a leading @, keep the rest verbatim.
+
+        An empty (or whitespace-only) value means "remove mine", and is
+        distinct from omitting the field, which means "leave it alone".
+
+        Deliberately permissive about the character set beyond the obvious
+        unsafe ones: Venmo owns the rules for what handles exist, they have
+        changed before, and rejecting a handle somebody actually has would be
+        worse than letting a bad one through — the link simply lands on a
+        Venmo page that says no such user.
+        """
+        if v is None:
+            return None
+
+        handle = v.strip().lstrip('@').strip()
+        if not handle:
+            return ''  # sentinel for "clear it"
+
+        if len(handle) > 30:
+            raise ValueError('Venmo usernames are at most 30 characters')
+        if not VENMO_USERNAME_RE.fullmatch(handle):
+            raise ValueError(
+                'Venmo usernames use letters, numbers, dashes and underscores'
+            )
+        return handle
 
 
 class VerifyEmailRequest(BaseModel):
@@ -519,6 +558,7 @@ class UserProfile(BaseModel):
     password_changed_at: Optional[datetime] = None
     last_login_at: Optional[datetime] = None
     default_currency: str = "USD"
+    venmo_username: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -567,3 +607,104 @@ class GoogleLinkRequest(BaseModel):
 class SetPasswordRequest(BaseModel):
     """Request to set password for OAuth-only users."""
     new_password: str = Field(..., min_length=8, max_length=128)
+
+
+# ---------------------------------------------------------------------------
+# Tabs
+# ---------------------------------------------------------------------------
+
+class TabItemCreate(BaseModel):
+    description: str = Field(min_length=1, max_length=200)
+    price: int = Field(ge=0, le=100_000_000)  # cents
+
+
+class TabCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+    items: List[TabItemCreate] = Field(default_factory=list, max_length=200)
+    tax: int = Field(default=0, ge=0, le=100_000_000)
+    tip: int = Field(default=0, ge=0, le=100_000_000)
+    total: Optional[int] = Field(default=None, ge=0, le=100_000_000)
+    receipt_image_path: Optional[str] = None
+
+
+class TabItemOut(BaseModel):
+    id: int
+    description: str
+    price: int
+    added_manually: bool
+    # Participant ids claiming this line; several means it is shared.
+    claimed_by: List[int] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True
+
+
+class TabParticipantOut(BaseModel):
+    id: int
+    display_name: str
+    # Present only for participants who were signed in when they claimed.
+    user_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TabOut(BaseModel):
+    id: int
+    name: str
+    currency: str
+    status: str
+    tax: int
+    tip: int
+    total: Optional[int]
+    created_by_id: int
+    payer_id: Optional[int]
+    expense_id: Optional[int]
+    items: List[TabItemOut] = Field(default_factory=list)
+    participants: List[TabParticipantOut] = Field(default_factory=list)
+    # Owner-only: absent from the public view.
+    share_token: Optional[str] = None
+    token_expires_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PublicTabOut(BaseModel):
+    """What a link-holder sees. Deliberately narrower than TabOut."""
+    name: str
+    currency: str
+    status: str
+    tax: int
+    tip: int
+    total: Optional[int]
+    items: List[TabItemOut] = Field(default_factory=list)
+    participants: List[TabParticipantOut] = Field(default_factory=list)
+
+
+class TabJoinRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=60)
+
+
+class TabJoinResponse(BaseModel):
+    participant: TabParticipantOut
+    # Identifies this claimer on later requests; they have no account.
+    claim_token: str
+    tab: PublicTabOut
+
+
+class TabClaimRequest(BaseModel):
+    claim_token: str = Field(min_length=1, max_length=128)
+    claimed: bool = True
+
+
+class TabSelfClaimRequest(BaseModel):
+    """A signed-in participant claiming for themselves; no token needed."""
+    claimed: bool = True
+
+
+class TabCloseRequest(BaseModel):
+    """Closing turns the tab into one ordinary direct expense."""
+    payer_participant_id: Optional[int] = None
+    date: Optional[str] = None

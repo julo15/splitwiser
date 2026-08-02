@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { CaretDown } from '@phosphor-icons/react';
+import { Avatar, Money } from '../ui';
 import type { GroupSummaryResponse, GroupSummaryMember } from '../../types/summary';
-import { formatMoney } from '../../utils/formatters';
 import SummaryHeader from './SummaryHeader';
 
 interface MemberConsumptionTableProps {
@@ -11,20 +12,27 @@ interface MemberConsumptionTableProps {
 const memberKey = (member: Pick<GroupSummaryMember, 'user_id' | 'is_guest'>): string =>
     `${member.user_id}-${member.is_guest}`;
 
-const initialFor = (displayName: string): string => {
-    const trimmed = displayName.trim();
-    if (!trimmed) return '?';
-    return trimmed.charAt(0).toUpperCase();
-};
-
-const MemberConsumptionTable: React.FC<MemberConsumptionTableProps> = ({ response, currentUserId }) => {
-    const { members, group_total, currency, granularity, has_synthesized_historical_rate } = response;
+/**
+ * Who accounted for how much of the group's spending.
+ *
+ * Rows come sorted by total descending from the server; the viewer is pinned
+ * to the top so their own share is the first thing read. Bars are proportional
+ * to the largest spender, which turns the column of figures into a shape you
+ * can scan without reading every number.
+ *
+ * Managed members fold into whoever settles up for them, matching the balance
+ * view, and expand to show the breakdown.
+ */
+const MemberConsumptionTable: React.FC<MemberConsumptionTableProps> = ({
+    response,
+    currentUserId,
+}) => {
+    const { members, group_total, currency, granularity, has_synthesized_historical_rate } =
+        response;
 
     const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
     const toggleButtonRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
 
-    // Sort: current user pinned first (match by user_id AND is_guest === false), then
-    // preserve the server's descending-by-total order for the rest.
     const sortedMembers = useMemo<GroupSummaryMember[]>(() => {
         if (currentUserId == null) return members;
         const youIndex = members.findIndex(
@@ -32,41 +40,38 @@ const MemberConsumptionTable: React.FC<MemberConsumptionTableProps> = ({ respons
         );
         if (youIndex === -1) return members;
         const you = members[youIndex];
-        const rest = members.filter((_, i) => i !== youIndex);
-        return [you, ...rest];
+        return [you, ...members.filter((_, i) => i !== youIndex)];
     }, [members, currentUserId]);
+
+    // Bar widths are relative to the biggest spender, not to the group total:
+    // with six people the tallest bar would otherwise never clear a fifth of
+    // the track and every row would look the same.
+    const largest = useMemo(
+        () => Math.max(...members.map((m) => m.total), 1),
+        [members]
+    );
 
     const toggleExpanded = (key: string) => {
         setExpandedKeys((prev) => {
             const next = new Set(prev);
-            if (next.has(key)) {
-                next.delete(key);
-            } else {
-                next.add(key);
-            }
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
             return next;
         });
-        // Keep keyboard focus on the toggle button after state update
-        requestAnimationFrame(() => {
-            const btn = toggleButtonRefs.current.get(key);
-            btn?.focus();
-        });
+        // Keep keyboard focus on the toggle after the state change.
+        requestAnimationFrame(() => toggleButtonRefs.current.get(key)?.focus());
     };
 
-    // Empty state: do NOT render the header total.
     if (members.length === 0) {
         return (
-            <div className="bg-white dark:bg-gray-800 rounded">
-                <p className="text-center text-sm text-gray-500 dark:text-gray-400 italic py-6">
-                    No spending yet — add an expense to see the summary.
-                </p>
-            </div>
+            <p className="text-[13px] text-sw-dim text-center py-6">
+                No spending yet — add an expense and this fills in.
+            </p>
         );
     }
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded">
-            {/* Header: group total + granularity + optional synthesized-rate note */}
+        <div>
             <SummaryHeader
                 groupTotal={group_total}
                 currency={currency}
@@ -74,11 +79,10 @@ const MemberConsumptionTable: React.FC<MemberConsumptionTableProps> = ({ respons
                 hasSynthesizedHistoricalRate={has_synthesized_historical_rate}
             />
 
-            {/* Per-member rows */}
-            <ul role="list" className="border-t dark:border-gray-700">
+            <ul className="flex flex-col border-t border-sw-line">
                 {sortedMembers.map((member) => {
                     const key = memberKey(member);
-                    const hasManaged = member.managed_members && member.managed_members.length > 0;
+                    const managed = member.managed_members ?? [];
                     const isExpanded = expandedKeys.has(key);
                     const isYou =
                         currentUserId != null &&
@@ -88,25 +92,25 @@ const MemberConsumptionTable: React.FC<MemberConsumptionTableProps> = ({ respons
                     const subrowsId = `member-managed-${key}`;
 
                     return (
-                        <li
-                            key={key}
-                            role="listitem"
-                            className="border-b last:border-b-0 dark:border-gray-700"
-                        >
-                            <div className="flex items-center justify-between py-3">
-                                <div className="flex items-center gap-3 min-w-0">
-                                    {/* Avatar placeholder */}
-                                    <div
-                                        className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-medium text-gray-700 dark:text-gray-200"
-                                        aria-hidden="true"
-                                    >
-                                        {initialFor(displayName)}
-                                    </div>
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                        <li key={key} className="border-b border-sw-line last:border-b-0">
+                            <div className="flex items-center gap-[11px] py-2.5">
+                                <Avatar
+                                    name={member.display_name}
+                                    size={28}
+                                    variant={isYou ? 'accent' : 'neutral'}
+                                />
+
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[13.5px] truncate">
                                             {displayName}
                                         </span>
-                                        {hasManaged && (
+                                        {member.is_guest && (
+                                            <span className="text-[11px] text-sw-dim flex-none">
+                                                guest
+                                            </span>
+                                        )}
+                                        {managed.length > 0 && (
                                             <button
                                                 ref={(el) => {
                                                     toggleButtonRefs.current.set(key, el);
@@ -115,41 +119,58 @@ const MemberConsumptionTable: React.FC<MemberConsumptionTableProps> = ({ respons
                                                 onClick={() => toggleExpanded(key)}
                                                 aria-expanded={isExpanded}
                                                 aria-controls={subrowsId}
-                                                aria-label={
-                                                    isExpanded
-                                                        ? `Collapse managed members for ${displayName}`
-                                                        : `Expand managed members for ${displayName}`
-                                                }
-                                                className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500 rounded"
+                                                aria-label={`${
+                                                    isExpanded ? 'Hide' : 'Show'
+                                                } who is folded into ${displayName}`}
+                                                className="flex-none inline-flex items-center gap-0.5 text-[11px] text-sw-dim hover:text-sw-text focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 rounded"
                                             >
-                                                <span className="text-lg leading-none" aria-hidden="true">
-                                                    {isExpanded ? '−' : '+'}
-                                                </span>
+                                                +{managed.length}
+                                                <CaretDown
+                                                    size={11}
+                                                    className={`transition-transform ${
+                                                        isExpanded ? 'rotate-180' : ''
+                                                    }`}
+                                                />
                                             </button>
                                         )}
                                     </div>
+
+                                    <div className="h-[5px] rounded-[3px] bg-sw-sunk overflow-hidden mt-1.5">
+                                        <div
+                                            className="h-full rounded-[3px] bg-sw-accent"
+                                            style={{
+                                                width: `${(member.total / largest) * 100}%`,
+                                            }}
+                                        />
+                                    </div>
                                 </div>
-                                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 tabular-nums flex-shrink-0 ml-3">
-                                    {formatMoney(member.total, currency)}
-                                </span>
+
+                                <Money
+                                    amount={member.total}
+                                    currency={currency}
+                                    className="text-[13.5px] font-medium flex-none"
+                                />
                             </div>
 
-                            {hasManaged && isExpanded && (
+                            {managed.length > 0 && isExpanded && (
                                 <ul
                                     id={subrowsId}
-                                    role="list"
-                                    className="pl-11 pb-3 space-y-1"
+                                    className="pl-[39px] pb-2.5 flex flex-col gap-1"
                                 >
-                                    {member.managed_members.map((mm, idx) => (
+                                    {managed.map((entry, index) => (
                                         <li
-                                            key={`${key}-managed-${idx}`}
-                                            role="listitem"
-                                            className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400"
+                                            key={`${key}-managed-${index}`}
+                                            className="flex items-center justify-between gap-3 text-[11.5px] text-sw-dim"
                                         >
-                                            <span className="truncate">— {mm.display_name}</span>
-                                            <span className="tabular-nums ml-3 flex-shrink-0">
-                                                {formatMoney(mm.total, currency)}
+                                            <span className="truncate">
+                                                {entry.display_name}
                                             </span>
+                                            <Money
+                                                amount={entry.total}
+                                                currency={currency}
+                                                tone="dim"
+                                                className="flex-none"
+                                            />
                                         </li>
                                     ))}
                                 </ul>

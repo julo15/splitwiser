@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatMoney } from '../../utils/formatters';
+import { Money, Notice } from '../ui';
 import type { SummaryGranularity } from '../../types/summary';
 import { granularityLabel } from './granularity';
 
@@ -10,23 +10,33 @@ interface SummaryHeaderProps {
     hasSynthesizedHistoricalRate: boolean;
 }
 
+/**
+ * What the group has spent in total, and over what.
+ *
+ * This is consumption, not balance: it never nets to zero and it does not
+ * shrink when people settle up. A group where everyone has paid their share
+ * reads $0 on the balances and still reads the full figure here.
+ */
 const SummaryHeader: React.FC<SummaryHeaderProps> = ({
     groupTotal,
     currency,
     granularity,
     hasSynthesizedHistoricalRate,
 }) => (
-    <div className="pb-4">
-        <div className="text-3xl lg:text-4xl font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
-            {formatMoney(groupTotal, currency)}
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {granularityLabel(granularity)}
-        </div>
+    <div className="flex flex-col gap-1 pb-3.5">
+        <Money
+            amount={groupTotal}
+            currency={currency}
+            className="text-[28px] font-medium tracking-[-0.015em]"
+        />
+        <div className="text-[12px] text-sw-dim">{granularityLabel(granularity)}</div>
+
         {hasSynthesizedHistoricalRate && (
-            <p className="text-xs italic text-gray-500 dark:text-gray-400 mt-2">
-                One or more historical exchange rates were synthesized from current data.
-            </p>
+            <Notice tone="info" className="mt-1.5">
+                Some expenses predate the exchange rates we have, so their
+                conversion uses today&rsquo;s rate. Treat those figures as close
+                rather than exact.
+            </Notice>
         )}
     </div>
 );

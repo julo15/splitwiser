@@ -29,8 +29,11 @@ const scanResult = {
 };
 
 function getFileInput(): HTMLInputElement {
-    // The component renders a single <input type="file"> (label has sr-only text).
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    // The capture screen renders two file inputs: the library picker (which
+    // accepts PDFs) and a camera-only one. These tests drive the library picker.
+    const input = document.querySelector(
+        'input[type="file"][accept*="application/pdf"]'
+    ) as HTMLInputElement;
     expect(input).toBeTruthy();
     return input;
 }
@@ -72,7 +75,7 @@ describe('ReceiptScanner upload', () => {
         });
         selectFile(getFileInput(), pdfFile);
 
-        fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+        fireEvent.click(screen.getByRole('button', { name: /read this receipt/i }));
 
         await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
@@ -93,7 +96,7 @@ describe('ReceiptScanner upload', () => {
 
         // Reached the success/review phase.
         await waitFor(() =>
-            expect(screen.getByText(/Detected Items/i)).toBeInTheDocument()
+            expect(screen.getByText(/Tap any line to fix it/i)).toBeInTheDocument()
         );
     });
 
@@ -106,7 +109,7 @@ describe('ReceiptScanner upload', () => {
         });
         selectFile(getFileInput(), pngFile);
 
-        fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+        fireEvent.click(screen.getByRole('button', { name: /read this receipt/i }));
 
         await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
@@ -189,7 +192,7 @@ describe('ReceiptScanner paste', () => {
             expect(screen.getByText(/Selected: pasted-receipt\.png/i)).toBeInTheDocument()
         );
 
-        fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+        fireEvent.click(screen.getByRole('button', { name: /read this receipt/i }));
 
         await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
@@ -201,7 +204,7 @@ describe('ReceiptScanner paste', () => {
 
         // Reached the review phase.
         await waitFor(() =>
-            expect(screen.getByText(/Detected Items/i)).toBeInTheDocument()
+            expect(screen.getByText(/Tap any line to fix it/i)).toBeInTheDocument()
         );
     });
 
@@ -224,7 +227,7 @@ describe('ReceiptScanner paste', () => {
         await waitFor(() =>
             expect(screen.getByText(/Selected: pasted-receipt\.png/i)).toBeInTheDocument()
         );
-        expect(screen.getByRole('button', { name: /scan receipt/i })).not.toBeDisabled();
+        expect(screen.getByRole('button', { name: /read this receipt/i })).not.toBeDisabled();
     });
 
     it('shows an error when the clipboard has no image', async () => {
@@ -265,9 +268,9 @@ describe('ReceiptScanner paste', () => {
 
         // Adopt an image and scan it to reach the review phase.
         selectFile(getFileInput(), new File(['a'], 'first.png', { type: 'image/png' }));
-        fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+        fireEvent.click(screen.getByRole('button', { name: /read this receipt/i }));
         await waitFor(() =>
-            expect(screen.getByText(/Detected Items/i)).toBeInTheDocument()
+            expect(screen.getByText(/Tap any line to fix it/i)).toBeInTheDocument()
         );
 
         // Any further object-URL creation now would mean a paste was adopted.
@@ -284,7 +287,7 @@ describe('ReceiptScanner paste', () => {
         });
 
         // Still in review, and no new preview URL was created.
-        expect(screen.getByText(/Detected Items/i)).toBeInTheDocument();
+        expect(screen.getByText(/Tap any line to fix it/i)).toBeInTheDocument();
         expect(screen.getByText(/Coffee/i)).toBeInTheDocument();
         expect(createSpy).not.toHaveBeenCalled();
     });
@@ -317,7 +320,7 @@ describe('ReceiptScanner paste', () => {
             expect(screen.getByText(/Selected: receipt\.pdf/i)).toBeInTheDocument()
         );
 
-        fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+        fireEvent.click(screen.getByRole('button', { name: /read this receipt/i }));
 
         await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
@@ -329,7 +332,7 @@ describe('ReceiptScanner paste', () => {
         expect(sentFile.type).toBe('application/pdf');
 
         await waitFor(() =>
-            expect(screen.getByText(/Detected Items/i)).toBeInTheDocument()
+            expect(screen.getByText(/Tap any line to fix it/i)).toBeInTheDocument()
         );
     });
 
@@ -373,7 +376,7 @@ describe('ReceiptScanner paste', () => {
         expect(revokeSpy).toHaveBeenCalledWith('blob:mock');
     });
 
-    it('does NOT revoke the preview URL on Re-scan (regression guard)', async () => {
+    it('does NOT revoke the preview URL on Retake (regression guard)', async () => {
         const createSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
         const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
 
@@ -381,18 +384,18 @@ describe('ReceiptScanner paste', () => {
         render(<ReceiptScanner onItemsDetected={onItemsDetected} onClose={() => {}} />);
 
         selectFile(getFileInput(), new File(['a'], 'first.png', { type: 'image/png' }));
-        fireEvent.click(screen.getByRole('button', { name: /scan receipt/i }));
+        fireEvent.click(screen.getByRole('button', { name: /read this receipt/i }));
         await waitFor(() =>
-            expect(screen.getByText(/Detected Items/i)).toBeInTheDocument()
+            expect(screen.getByText(/Tap any line to fix it/i)).toBeInTheDocument()
         );
 
         // Isolate the Re-scan action from any earlier revoke/create calls.
         revokeSpy.mockClear();
         createSpy.mockClear();
 
-        fireEvent.click(screen.getByRole('button', { name: /re-scan/i }));
+        fireEvent.click(screen.getByRole('button', { name: /retake/i }));
 
-        // Back in the upload phase with the live preview intact.
+        // Back on the capture screen with the live preview intact.
         const preview = await screen.findByAltText('Receipt preview');
         expect(preview).toHaveAttribute('src', 'blob:mock');
         expect(revokeSpy).not.toHaveBeenCalled();
@@ -411,7 +414,7 @@ describe('ReceiptScanner paste', () => {
             expect(screen.getByText(/Selected: first\.png/i)).toBeInTheDocument()
         );
 
-        fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+        fireEvent.click(screen.getByRole('button', { name: /close/i }));
 
         expect(revokeSpy).toHaveBeenCalledWith('blob:mock');
         expect(onClose).toHaveBeenCalledTimes(1);

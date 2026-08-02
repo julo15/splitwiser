@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { Scan, X } from '@phosphor-icons/react';
 import ReceiptScanner from './ReceiptScanner';
+import AmountKeypad, { AmountDisplay } from './components/expense/AmountKeypad';
 import ParticipantSelector from './ParticipantSelector';
 import ExpenseSplitTypeSelector from './components/expense/ExpenseSplitTypeSelector';
 import ExpenseItemList from './components/expense/ExpenseItemList';
@@ -43,6 +45,12 @@ interface AddExpenseModalProps {
     groups?: Group[];
     preselectedGroupId?: number | null;
     preselectedFriendId?: number | null;
+    /**
+     * Open straight into the receipt scanner instead of the manual form. Used
+     * by the FAB sheet's "Split a bill at the table", where scanning is the
+     * whole point of the entry.
+     */
+    openScanner?: boolean;
 }
 
 const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
@@ -52,7 +60,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     friends,
     groups = [],
     preselectedGroupId = null,
-    preselectedFriendId = null
+    preselectedFriendId = null,
+    openScanner = false
 }) => {
     const { user } = useAuth();
     const { isOnline: _isOnline } = useSync();
@@ -181,8 +190,11 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     useEffect(() => {
         if (isOpen) {
             resetForm();
+            // Honor the caller's entry point: "Split a bill at the table" lands
+            // on the scanner, everything else on the manual form.
+            setShowScanner(openScanner);
         }
-    }, [isOpen, preselectedGroupId, preselectedFriendId, user?.id]);
+    }, [isOpen, openScanner, preselectedGroupId, preselectedFriendId, user?.id]);
 
     const handleScannedItems = (items: { description: string, price: number }[], receiptPath?: string, validationWarning?: string | null, taxCents?: number | null, tipCents?: number | null, totalCents?: number | null) => {
         setScannedItems(items);
@@ -601,7 +613,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
     return (
         <div
-            className="fixed inset-0 bg-gray-600 dark:bg-gray-900/75 bg-opacity-50 z-40 flex items-end md:items-center justify-center"
+            className="fixed inset-0 bg-black/55 z-40 flex items-end md:items-center justify-center font-sans"
             onClick={handleBackdropClick}
         >
             {showScanner && (
@@ -639,27 +651,44 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                     itemDescription={itemizedExpense.itemizedItems[itemizedExpense.editingItemIndex]?.description || ''}
                 />
             )}
-            <div className="bg-white dark:bg-gray-800 w-full md:w-[448px] max-h-[90vh] rounded-t-2xl md:rounded-2xl shadow-xl dark:shadow-gray-900/50 overflow-y-auto flex flex-col">
-                <div className="sticky top-0 bg-white dark:bg-gray-800 z-10 p-4 sm:p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                    <h2 className="text-xl font-bold dark:text-gray-100">Add an expense</h2>
+            <div className="bg-sw-surface text-sw-text w-full md:w-[448px] max-h-[92vh] rounded-t-sw-sheet md:rounded-sw-card-lg shadow-[0_-12px_40px_rgba(0,0,0,.45)] md:shadow-[0_0_0_1px_var(--sw-line)] overflow-hidden flex flex-col">
+                <div className="sticky top-0 bg-sw-surface z-10 px-4 sm:px-5 py-3.5 border-b border-sw-line flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Close"
+                        className="text-sw-muted hover:text-sw-text flex-none"
+                    >
+                        <X size={22} />
+                    </button>
+                    <h2 className="text-base font-medium text-sw-text">New expense</h2>
                     <button
                         type="button"
                         onClick={() => setShowScanner(true)}
-                        className="text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-3 py-2 rounded hover:bg-indigo-200 dark:hover:bg-indigo-900/50 min-h-[44px] flex items-center gap-2"
+                        aria-label="Scan a receipt"
+                        className="ml-auto text-sm text-sw-accent border border-sw-accent px-3 py-2 rounded-lg hover:bg-[color-mix(in_srgb,var(--sw-accent)_12%,transparent)] min-h-9 flex items-center gap-2"
                     >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        Scan Receipt
+                        <Scan size={18} />
+                        Scan
                     </button>
                 </div>
-                <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
-                    <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+
+                {/*
+                  * The amount hero. The keypad that drives it is pinned below
+                  * the scrolling form, so the figure and its keys stay visible
+                  * together while the rest of the form scrolls between them.
+                  */}
+                {splitType !== 'ITEMIZED' && (
+                    <div className="pt-4 pb-1 bg-sw-surface flex-none">
+                        <AmountDisplay value={amount} currency={currency} />
+                    </div>
+                )}
+                <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+                    <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5">
                         {scannedItems.length > 0 && (
-                            <div className="mb-4 bg-gray-50 dark:bg-gray-700 p-3 rounded text-sm">
-                                <p className="font-semibold mb-1 dark:text-gray-100">Scanned Items:</p>
-                                <ul className="list-disc pl-4 text-gray-600 dark:text-gray-300">
+                            <div className="mb-4 bg-sw-sunk p-3 rounded text-sm">
+                                <p className="font-semibold mb-1 text-sw-text">Scanned Items:</p>
+                                <ul className="list-disc pl-4 text-sw-muted">
                                     {scannedItems.map((item, idx) => (
                                         <li key={idx}>{item.description}: ${(item.price / 100).toFixed(2)}</li>
                                     ))}
@@ -669,12 +698,12 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
                         {groups.length > 0 && (
                             <div className="mb-4">
-                                <label htmlFor="group-select" className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Group (optional):</label>
+                                <label htmlFor="group-select" className="block text-sw-muted text-sm font-bold mb-2">Group (optional):</label>
                                 <select
                                     id="group-select"
                                     value={selectedGroupId || ''}
                                     onChange={(e) => setSelectedGroupId(e.target.value ? parseInt(e.target.value) : null)}
-                                    className="w-full border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 bg-white dark:bg-gray-700 dark:text-gray-100"
+                                    className="w-full px-2.5 py-2 rounded-lg border border-sw-line bg-sw-sunk text-sw-text focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                                 >
                                     <option value="">No group</option>
                                     {groups.map(g => (
@@ -685,7 +714,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                         )}
 
                         <div className="mb-4">
-                            <label htmlFor="description-input" className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Description:</label>
+                            <label htmlFor="description-input" className="block text-sw-muted text-sm font-bold mb-2">Description:</label>
                             <div className="flex items-center gap-2">
                                 <IconSelector
                                     selectedIcon={selectedIcon}
@@ -695,7 +724,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                     id="description-input"
                                     type="text"
                                     placeholder="Enter a description"
-                                    className="flex-1 border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
+                                    className="flex-1 border-b border-sw-line py-2 focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 bg-sw-surface text-sw-text placeholder:text-sw-dim"
                                     value={description}
                                     onChange={e => setDescription(e.target.value)}
                                     required
@@ -703,12 +732,21 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                             </div>
                         </div>
 
-                        <div className="mb-4 flex items-center space-x-2">
+                        {/*
+                          * Non-itemized amounts are entered on the keypad above
+                          * and below this form, so only the currency lives here.
+                          * Itemized totals are derived and shown read-only.
+                          */}
+                        <div className="mb-4 flex items-center gap-2">
+                            <label className="text-sm text-sw-muted" htmlFor="currency-select">
+                                Currency
+                            </label>
                             <select
+                                id="currency-select"
                                 aria-label="Currency"
                                 value={currency}
                                 onChange={(e) => setCurrency(e.target.value)}
-                                className="border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 bg-transparent text-gray-700 dark:text-gray-200 dark:bg-gray-700"
+                                className="px-2.5 py-2 rounded-lg border border-sw-line bg-sw-sunk text-sw-text focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                             >
                                 {sortedCurrencies.map(c => (
                                     <option key={c.code} value={c.code}>
@@ -716,25 +754,23 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                     </option>
                                 ))}
                             </select>
-                            <input
-                                aria-label="Amount"
-                                type="text"
-                                inputMode="decimal"
-                                placeholder="0.00"
-                                className={`w-full border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 text-lg dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400 ${splitType === 'ITEMIZED' ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' : ''}`}
-                                value={splitType === 'ITEMIZED' ? calculateItemizedTotal(itemizedExpense.itemizedItems, itemizedExpense.taxAmount, itemizedExpense.tipAmount) : amount}
-                                onChange={e => setAmount(e.target.value)}
-                                disabled={splitType === 'ITEMIZED'}
-                                required={splitType !== 'ITEMIZED'}
-                            />
+
+                            {splitType === 'ITEMIZED' && (
+                                <span className="ml-auto text-sm text-sw-muted">
+                                    Total{' '}
+                                    <span className="sw-num text-sw-text">
+                                        {calculateItemizedTotal(itemizedExpense.itemizedItems, itemizedExpense.taxAmount, itemizedExpense.tipAmount)}
+                                    </span>
+                                </span>
+                            )}
                         </div>
 
                         <div className="mb-4">
-                            <label htmlFor="date-input" className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Date:</label>
+                            <label htmlFor="date-input" className="block text-sw-muted text-sm font-bold mb-2">Date:</label>
                             <input
                                 id="date-input"
                                 type="date"
-                                className="w-full border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 dark:bg-gray-800 dark:text-gray-100"
+                                className="w-full border-b border-sw-line py-2 focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 bg-sw-surface text-sw-text"
                                 value={expenseDate}
                                 onChange={(e) => setExpenseDate(e.target.value)}
                                 required
@@ -742,10 +778,10 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                         </div>
 
                         <div className="mb-4">
-                            <label htmlFor="notes-input" className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Notes:</label>
+                            <label htmlFor="notes-input" className="block text-sw-muted text-sm font-bold mb-2">Notes:</label>
                             <textarea
                                 id="notes-input"
-                                className="w-full border rounded-lg p-2 text-sm focus:outline-none focus:border-teal-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400"
+                                className="w-full border rounded-lg p-2 text-sm focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 bg-sw-sunk border-sw-line text-sw-text placeholder:text-sw-dim"
                                 placeholder="Add notes (optional)"
                                 rows={2}
                                 value={notes}
@@ -759,26 +795,26 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                     type="checkbox"
                                     checked={isSettlement}
                                     onChange={(e) => setIsSettlement(e.target.checked)}
-                                    className="w-4 h-4 text-teal-600 bg-gray-100 border-gray-300 rounded focus:ring-teal-500 dark:bg-gray-700 dark:border-gray-600"
+                                    className="w-4 h-4 rounded accent-[var(--sw-accent)] bg-sw-sunk border-sw-line"
                                 />
-                                <span className="text-sm text-gray-700 dark:text-gray-300">This is a settlement (payment)</span>
+                                <span className="text-sm text-sw-muted">This is a settlement (payment)</span>
                             </label>
                         </div>
 
                         <div className="mb-4">
-                            <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Participants:</label>
+                            <label className="block text-sw-muted text-sm font-bold mb-2">Participants:</label>
                             {getAvailableParticipants().length === 1 ? (
-                                <div className="text-sm text-gray-500 dark:text-gray-400 italic py-2">
+                                <div className="text-sm text-sw-dim italic py-2">
                                     {selectedGroup ? 'No other members in this group' : 'Add friends or select a group with members to split expenses'}
                                 </div>
                             ) : getAvailableParticipants().length > 6 ? (
                                 <button
                                     type="button"
                                     onClick={() => setShowParticipantSelector(true)}
-                                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 text-left flex items-center justify-between min-h-[44px]"
+                                    className="w-full px-4 py-3 rounded-lg border border-sw-line bg-sw-sunk text-sw-muted hover:bg-sw-raise text-left flex items-center justify-between min-h-[44px]"
                                 >
                                     <span className="text-sm">{getSelectedParticipantsDisplay()}</span>
-                                    <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg className="w-5 h-5 text-sw-dim" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
                                         <path d="M9 5l7 7-7 7"></path>
                                     </svg>
                                 </button>
@@ -813,10 +849,13 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                                     onClick={toggleFn}
                                                     aria-pressed={isSelected}
                                                     className={`px-4 py-2 rounded-full text-sm border min-h-[44px] transition-all duration-200 ${isSelected
+                                                        // Selection is an accent state, not a
+                                                        // money one — guests differ by fill
+                                                        // weight, staying in the accent family.
                                                         ? participant.isGuest
-                                                            ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-500 dark:border-orange-600 text-orange-700 dark:text-orange-300'
-                                                            : 'bg-teal-100 dark:bg-teal-900/30 border-teal-500 dark:border-teal-600 text-teal-700 dark:text-teal-300'
-                                                        : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 dark:text-gray-200'
+                                                            ? 'bg-sw-accent-soft border-sw-accent text-sw-accent'
+                                                            : 'bg-sw-accent-ghost border-sw-accent text-sw-accent'
+                                                        : 'bg-sw-sunk border-sw-line text-sw-muted'
                                                         }`}
                                                 >
                                                     {participant.name}
@@ -830,9 +869,9 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                         {/* Expense Guests Section - Only for non-group expenses */}
                         {!selectedGroupId && (
                             <div className="mb-4">
-                                <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">
+                                <label className="block text-sw-muted text-sm font-bold mb-2">
                                     Add Guests
-                                    <span className="font-normal text-gray-500 dark:text-gray-400 ml-1">(people not on Splitwiser)</span>
+                                    <span className="font-normal text-sw-dim ml-1">(people not on Splitwiser)</span>
                                 </label>
 
                                 {/* Guest input */}
@@ -848,7 +887,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                                 addExpenseGuest();
                                             }
                                         }}
-                                        className="flex-1 border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
+                                        className="flex-1 border-b border-sw-line py-2 focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 bg-sw-surface text-sw-text placeholder:text-sw-dim"
                                     />
                                     <button
                                         type="button"
@@ -888,7 +927,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
                         {getPotentialPayers().length > 1 && (
                             <div className="mb-4">
-                                <label htmlFor="payer-select" className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Paid by:</label>
+                                <label htmlFor="payer-select" className="block text-sw-muted text-sm font-bold mb-2">Paid by:</label>
                                 <select
                                     id="payer-select"
                                     value={
@@ -914,7 +953,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                             setPayerTempGuestId(null);
                                         }
                                     }}
-                                    className="w-full border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 bg-white dark:bg-gray-700 dark:text-gray-100"
+                                    className="w-full px-2.5 py-2 rounded-lg border border-sw-line bg-sw-sunk text-sw-text focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                                 >
                                     {getPotentialPayers().map(p => {
                                         const key = p.isExpenseGuest && p.tempId
@@ -933,25 +972,25 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                         )}
 
                         <div className="mb-4">
-                            <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">Split by:</label>
+                            <label className="block text-sw-muted text-sm font-bold mb-2">Split by:</label>
                             <ExpenseSplitTypeSelector value={splitType} onChange={setSplitType} />
 
                             {splitType === 'ITEMIZED' && (
-                                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded">
+                                <div className="bg-sw-sunk p-3 rounded">
                                     <div className="flex justify-between items-center mb-3">
-                                        <p className="font-semibold text-sm dark:text-gray-100">Assign Items</p>
+                                        <p className="font-semibold text-sm text-sw-text">Assign Items</p>
                                         <div className="flex gap-2">
                                             <button
                                                 type="button"
                                                 onClick={() => setShowScanner(true)}
-                                                className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 px-3 py-2 min-h-[44px]"
+                                                className="text-sm text-sw-accent hover:text-sw-text px-3 py-2 min-h-[44px]"
                                             >
                                                 + Scan
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={itemizedExpense.openAddItemModal}
-                                                className="text-sm text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 px-3 py-2 min-h-[44px]"
+                                                className="text-sm text-sw-accent hover:text-sw-text px-3 py-2 min-h-[44px]"
                                             >
                                                 + Add
                                             </button>
@@ -992,18 +1031,18 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                         currentUserId={user?.id}
                                     />
 
-                                    <div className="mt-3 pt-3 border-t dark:border-gray-600 space-y-3">
+                                    <div className="mt-3 pt-3 border-t border-sw-line space-y-3">
                                         {/* Tax Input */}
                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                            <span className="text-sm text-gray-600 dark:text-gray-400">Tax (split proportionally)</span>
+                                            <span className="text-sm text-sw-dim">Tax (split proportionally)</span>
                                             <div className="flex items-center">
-                                                <span className="text-sm mr-2 dark:text-gray-300">{currency}</span>
+                                                <span className="text-sm mr-2 text-sw-muted">{currency}</span>
                                                 <input
                                                     type="text"
                                                     inputMode="decimal"
                                                     placeholder="0.00"
                                                     step="0.01"
-                                                    className="w-28 sm:w-24 border dark:border-gray-600 rounded p-2 text-sm text-right min-h-[44px] dark:bg-gray-800 dark:text-gray-100"
+                                                    className="w-28 sm:w-24 border border-sw-line rounded p-2 text-sm text-right min-h-[44px] bg-sw-surface text-sw-text"
                                                     value={itemizedExpense.taxAmount}
                                                     onChange={(e) => itemizedExpense.setTaxAmount(e.target.value)}
                                                 />
@@ -1013,15 +1052,15 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                         {/* Tip Input with percentage buttons */}
                                         <div className="flex flex-col gap-2">
                                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                                <span className="text-sm text-gray-600 dark:text-gray-400">Tip (split proportionally)</span>
+                                                <span className="text-sm text-sw-dim">Tip (split proportionally)</span>
                                                 <div className="flex items-center">
-                                                    <span className="text-sm mr-2 dark:text-gray-300">{currency}</span>
+                                                    <span className="text-sm mr-2 text-sw-muted">{currency}</span>
                                                     <input
                                                         type="text"
                                                         inputMode="decimal"
                                                         placeholder="0.00"
                                                         step="0.01"
-                                                        className="w-28 sm:w-24 border dark:border-gray-600 rounded p-2 text-sm text-right min-h-[44px] dark:bg-gray-800 dark:text-gray-100"
+                                                        className="w-28 sm:w-24 border border-sw-line rounded p-2 text-sm text-right min-h-[44px] bg-sw-surface text-sw-text"
                                                         value={itemizedExpense.tipAmount}
                                                         onChange={(e) => itemizedExpense.setTipAmount(e.target.value)}
                                                     />
@@ -1033,7 +1072,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                                         key={percent}
                                                         type="button"
                                                         onClick={() => itemizedExpense.setTipFromPercentage(percent)}
-                                                        className="px-3 py-1 text-xs bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded hover:bg-teal-200 dark:hover:bg-teal-900/50 transition-colors"
+                                                        className="px-3 py-1 text-xs text-sw-accent border border-sw-accent rounded-md hover:bg-[color-mix(in_srgb,var(--sw-accent)_12%,transparent)] transition-colors"
                                                     >
                                                         {percent}%
                                                     </button>
@@ -1061,9 +1100,21 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 sm:p-5 flex justify-end space-x-3">
-                        <button type="button" onClick={onClose} disabled={isSubmitting} className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded min-h-[44px] disabled:opacity-50">Cancel</button>
-                        <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
+                    {/*
+                      * Itemized expenses derive their total from the items, so
+                      * there is nothing for the keypad to edit.
+                      */}
+                    {splitType !== 'ITEMIZED' && (
+                        <AmountKeypad
+                            value={amount}
+                            onChange={setAmount}
+                            currency={currency}
+                        />
+                    )}
+
+                    <div className="sticky bottom-0 bg-sw-surface border-t border-sw-line p-4 sm:p-5 flex justify-end space-x-3">
+                        <button type="button" onClick={onClose} disabled={isSubmitting} className="px-4 py-2 text-sw-dim hover:bg-sw-raise rounded min-h-[44px] disabled:opacity-50">Cancel</button>
+                        <button type="submit" disabled={isSubmitting} className="px-4 py-2 text-sw-accent border border-sw-accent rounded-lg hover:bg-[color-mix(in_srgb,var(--sw-accent)_12%,transparent)] min-h-[44px] disabled:opacity-45 disabled:cursor-not-allowed flex items-center justify-center font-medium">
                             {isSubmitting ? (
                                 <>
                                     <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

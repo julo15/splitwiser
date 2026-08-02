@@ -49,7 +49,7 @@ Non-registered users can participate in expenses and later claim their profiles.
 ```
 
 ## Frontend Components
-- `ManageGuestModal.tsx` - UI for linking guests to managers
+- `components/group/GroupPersonSheet.tsx` - Linking a guest to a manager, claiming, removal
 - `AddGuestModal.tsx` - Simple form to add guest by name
 - Visual indicators show managed guest relationships in balance view
 
@@ -91,8 +91,8 @@ Similar to guest management, registered users can also be managed for balance ag
 ```
 
 ## Frontend Components
-- `ManageMemberModal.tsx` - UI for linking members to managers
-- `GroupDetailPage.tsx` - Section headers distinguish Splitwisers from Guests
+- `components/group/GroupPersonSheet.tsx` - Linking a member to a manager, removal
+- `routes/GroupPage.tsx` - Chips mark guests, and show `→ manager` when a balance is folded
 - Visual indicators show managed member relationships in balance view
 
 ## Migration Scripts
@@ -158,7 +158,7 @@ Enable read-only group sharing without requiring authentication.
 
 ## Frontend Implementation
 
-- `GroupDetailPage.tsx` - Handles both authenticated and public views
+- `routes/GroupPage.tsx` (authenticated) and `routes/PublicGroupPage.tsx` (share link)
 - Uses `isPublicView` prop to toggle between edit/read-only modes
 - Share button copies public URL to clipboard
 - All edit buttons hidden in public view

@@ -19,7 +19,20 @@ import models
 from database import engine
 
 # Import routers
-from routers import auth, balances, expenses, friends, groups, members, oauth, ocr, password_recovery, profile, summary
+from routers import (
+    auth,
+    balances,
+    expenses,
+    friends,
+    groups,
+    members,
+    oauth,
+    ocr,
+    password_recovery,
+    profile,
+    summary,
+    tabs,
+)
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -97,3 +110,4 @@ app.include_router(balances.router)
 app.include_router(summary.router)
 app.include_router(friends.router)
 app.include_router(ocr.router)
+app.include_router(tabs.router)

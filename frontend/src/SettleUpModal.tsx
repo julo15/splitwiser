@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { api } from './services/api';
 import { formatDateForInput } from './utils/formatters';
+import { Button } from './components/ui';
 import AlertDialog from './components/AlertDialog';
-import type { ExpensePayload } from './types/expense';
 
 interface Friend {
     id: number;
@@ -19,26 +19,36 @@ interface SettleUpModalProps {
     preselectedFriendId?: number | null;
 }
 
-const SettleUpModal: React.FC<SettleUpModalProps> = ({ isOpen, onClose, onSettled, friends, preselectedFriendId = null }) => {
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'CNY', 'HKD', 'CHF'];
+
+/**
+ * A direct payment to one person, outside any group.
+ *
+ * The per-group simplification lives on the Settle up screen; this covers the
+ * case that screen cannot — paying someone an arbitrary amount that is not
+ * derived from a group's debts.
+ */
+const SettleUpModal: React.FC<SettleUpModalProps> = ({
+    isOpen,
+    onClose,
+    onSettled,
+    friends,
+    preselectedFriendId = null,
+}) => {
     const { user } = useAuth();
-    const [payerId] = useState<number>(user?.id || 0);
-    const [recipientId, setRecipientId] = useState<number>(preselectedFriendId || friends[0]?.id || 0);
+    const [recipientId, setRecipientId] = useState<number>(
+        preselectedFriendId || friends[0]?.id || 0
+    );
     const [amount, setAmount] = useState('');
     const [currency, setCurrency] = useState('USD');
-    const [currencies] = useState<string[]>(['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'CNY', 'HKD']);
-    const [alertDialog, setAlertDialog] = useState<{
+    const [submitting, setSubmitting] = useState(false);
+    const [alert, setAlert] = useState<{
         isOpen: boolean;
         title: string;
         message: string;
         type: 'alert' | 'confirm' | 'success' | 'error';
-    }>({
-        isOpen: false,
-        title: '',
-        message: '',
-        type: 'alert'
-    });
+    }>({ isOpen: false, title: '', message: '', type: 'alert' });
 
-    // Reset recipient when modal opens with preselected friend
     useEffect(() => {
         if (isOpen) {
             setRecipientId(preselectedFriendId || friends[0]?.id || 0);
@@ -49,126 +59,162 @@ const SettleUpModal: React.FC<SettleUpModalProps> = ({ isOpen, onClose, onSettle
 
     if (!isOpen) return null;
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const recipient = friends.find((f) => f.id === recipientId);
 
-        // Settle up is just an expense where one person pays the other full amount
-        // Payer pays Amount.
-        // Recipient owes Payer Amount. -> This increases Recipient's debt to Payer.
-        // WAIT. "Settle Up" usually means paying back a debt.
-        // If I owe Bob $50. I pay Bob $50.
-        // In the system, this is recorded as a Payment.
-        // A Payment is an expense where Payer = Me, Cost = $50. Split = Bob owes Me $50?
-        // If Bob owes me $50, his balance with me decreases (becomes more negative for him, more positive for me).
-        // If I owed him $50 (balance -50). Now he owes me $50 (+50). Net = 0.
-        // YES.
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
 
-        const totalAmountCents = Math.round(parseFloat(amount) * 100);
+        // The payer is the signed-in user; without an id there is nothing to
+        // record against. Guarded here so the payload stays fully typed.
+        if (!user?.id) return;
 
-        const payload: ExpensePayload = {
-            description: "Settle Up",
-            amount: totalAmountCents,
-            currency,
-            date: formatDateForInput(new Date()),
-            payer_id: payerId, // Who is paying the money physically
-            payer_is_guest: false,
-            group_id: null,
-            split_type: 'EXACT',
-            splits: [
-                {
-                    user_id: recipientId, // The person receiving the money (so they "owe" the payer in the system logic to offset the debt)
-                    amount_owed: totalAmountCents
-                }
-            ]
-        };
+        const cents = Math.round(parseFloat(amount) * 100);
+        if (!Number.isFinite(cents) || cents <= 0) {
+            setAlert({
+                isOpen: true,
+                title: 'Enter an amount',
+                message: 'Please enter how much you paid.',
+                type: 'error',
+            });
+            return;
+        }
 
+        setSubmitting(true);
         try {
-            const response = await api.expenses.create(payload);
+            // Recorded as an expense the payer covered in full, which cancels
+            // that much of the debt. is_settlement keeps it out of spending
+            // totals and under the Settlements filter — matching how Simplify
+            // Debts records one.
+            const response = await api.expenses.create({
+                description: 'Settle up',
+                amount: cents,
+                currency,
+                date: formatDateForInput(new Date()),
+                payer_id: user.id,
+                payer_is_guest: false,
+                group_id: null,
+                split_type: 'EXACT',
+                icon: '🏦',
+                is_settlement: true,
+                splits: [{ user_id: recipientId, amount_owed: cents }],
+            });
 
             if (response.ok) {
                 onSettled();
                 onClose();
                 setAmount('');
             } else {
-                setAlertDialog({
+                setAlert({
                     isOpen: true,
                     title: 'Error',
-                    message: 'Failed to settle up',
-                    type: 'error'
+                    message: 'Failed to record the payment.',
+                    type: 'error',
                 });
             }
         } catch {
-            setAlertDialog({
+            setAlert({
                 isOpen: true,
                 title: 'Error',
-                message: 'Failed to settle up',
-                type: 'error'
+                message: 'Failed to record the payment.',
+                type: 'error',
             });
+        } finally {
+            setSubmitting(false);
         }
     };
-
-    const handleBackdropClick = (e: React.MouseEvent) => {
-        if (e.target === e.currentTarget) {
-            onClose();
-        }
-    };
-
-    if (!isOpen) return null;
 
     return (
         <div
-            className="fixed inset-0 bg-gray-600 dark:bg-gray-900/75 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50"
-            onClick={handleBackdropClick}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 font-sans"
+            onClick={(event) => {
+                if (event.target === event.currentTarget) onClose();
+            }}
         >
-            <div className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-xl dark:shadow-gray-900/50 w-96">
-                <h2 className="text-xl font-bold mb-4 dark:text-gray-100">Settle Up</h2>
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Settle up"
+                className="bg-sw-surface text-sw-text rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)] w-full max-w-sm p-5"
+            >
+                <h2 className="text-[17px] font-medium mb-4">Settle up</h2>
+
                 <form onSubmit={handleSubmit}>
-                    <div className="mb-4">
-                        <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">You paid</label>
+                    <label
+                        className="block text-xs text-sw-muted mb-1.5"
+                        htmlFor="settle-who"
+                    >
+                        You paid
+                    </label>
+                    <select
+                        id="settle-who"
+                        className="w-full mb-4 px-2.5 py-2 rounded-lg bg-sw-sunk text-sw-text border border-sw-line focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
+                        value={recipientId}
+                        onChange={(event) =>
+                            setRecipientId(parseInt(event.target.value, 10))
+                        }
+                    >
+                        {friends.map((friend) => (
+                            <option key={friend.id} value={friend.id}>
+                                {friend.full_name}
+                            </option>
+                        ))}
+                    </select>
+
+                    <label
+                        className="block text-xs text-sw-muted mb-1.5"
+                        htmlFor="settle-amount"
+                    >
+                        Amount
+                    </label>
+                    <div className="flex gap-2 mb-5">
                         <select
-                            className="w-full border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 bg-white dark:bg-gray-700 dark:text-gray-100"
-                            value={recipientId}
-                            onChange={e => setRecipientId(parseInt(e.target.value))}
+                            aria-label="Currency"
+                            value={currency}
+                            onChange={(event) => setCurrency(event.target.value)}
+                            className="px-2.5 py-2 rounded-lg bg-sw-sunk text-sw-text border border-sw-line focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                         >
-                            {friends.map(f => (
-                                <option key={f.id} value={f.id}>{f.full_name}</option>
+                            {CURRENCIES.map((code) => (
+                                <option key={code} value={code}>
+                                    {code}
+                                </option>
                             ))}
                         </select>
-                    </div>
-
-                    <div className="mb-4 flex items-center space-x-2">
-                        <select
-                            value={currency}
-                            onChange={(e) => setCurrency(e.target.value)}
-                            className="border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 bg-transparent text-gray-700 dark:text-gray-200 dark:bg-gray-700"
-                        >
-                            {currencies.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
                         <input
+                            id="settle-amount"
                             type="text"
                             inputMode="decimal"
                             placeholder="0.00"
-                            className="w-full border-b border-gray-300 dark:border-gray-600 py-2 focus:outline-none focus:border-teal-500 text-lg dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
+                            className="sw-num flex-1 min-w-0 px-2.5 py-2 rounded-lg bg-sw-sunk text-sw-text border border-sw-line text-lg placeholder:text-sw-dim focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                             value={amount}
-                            onChange={e => setAmount(e.target.value)}
+                            onChange={(event) => setAmount(event.target.value)}
                             required
                         />
                     </div>
 
-                    <div className="flex justify-end space-x-3 mt-6">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancel</button>
-                        <button type="submit" className="px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600">Save</button>
+                    {recipient && (
+                        <p className="text-[12.5px] text-sw-dim mb-4">
+                            Records a payment from you to {recipient.full_name}, clearing
+                            that much of what you owe.
+                        </p>
+                    )}
+
+                    <div className="flex justify-end gap-2">
+                        <Button variant="ghost" onClick={onClose}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" variant="primary" disabled={submitting}>
+                            {submitting ? 'Saving…' : 'Save'}
+                        </Button>
                     </div>
                 </form>
             </div>
 
-            {/* Alert Dialog */}
             <AlertDialog
-                isOpen={alertDialog.isOpen}
-                onClose={() => setAlertDialog({ ...alertDialog, isOpen: false })}
-                title={alertDialog.title}
-                message={alertDialog.message}
-                type={alertDialog.type}
+                isOpen={alert.isOpen}
+                onClose={() => setAlert({ ...alert, isOpen: false })}
+                title={alert.title}
+                message={alert.message}
+                type={alert.type}
             />
         </div>
     );

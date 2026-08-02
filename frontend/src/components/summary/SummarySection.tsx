@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Button, Notice } from '../ui';
 import { groupsApi } from '../../services/api';
 import type {
     GroupSummaryResponse,
@@ -20,14 +21,17 @@ interface SummarySectionProps {
 type SummaryResponse = GroupSummaryResponse | PublicGroupSummaryResponse;
 
 /**
- * Collapsible Summary section. Mirrors the Balances card pattern in
- * GroupDetailPage: same outer classes, aria-expanded/aria-controls toggle,
- * +/- indicator. Fetches on first expansion and caches the response for the
- * remainder of the session.
+ * The group's spending summary: who consumed how much, and when.
+ *
+ * Distinct from balances, which net to zero and go quiet once everyone has
+ * settled — this never nets and answers "what did this cost us, and who did
+ * the spending". Two shapes: members plus a stacked chart when you are signed
+ * in, group total plus a single-series chart on a public share link.
+ *
+ * The response is cached for the session; switching views does not refetch.
  */
 const SummarySection: React.FC<SummarySectionProps> = ({ groupId, shareLinkId, currentUserId }) => {
     const isPublic = !!shareLinkId;
-    const [isExpanded, setIsExpanded] = useState(false);
     const [response, setResponse] = useState<SummaryResponse | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -48,15 +52,14 @@ const SummarySection: React.FC<SummarySectionProps> = ({ groupId, shareLinkId, c
         }
     }, [isPublic, shareLinkId, groupId]);
 
-    // Fetch on first expansion (not on mount). Guard against refetching across
-    // expand/collapse cycles by checking that we don't already have data and
-    // aren't mid-flight. React 19 strict mode double-invokes effects; the
-    // `response || isLoading` guard keeps us from issuing a duplicate request.
+    // Fetched on mount rather than on a disclosure: the group page only mounts
+    // this once you switch to the Spending view, so mounting *is* the request
+    // for it. React 19 strict mode double-invokes effects, so the
+    // response/isLoading/error guard still has to be here.
     useEffect(() => {
-        if (!isExpanded) return;
         if (response || isLoading || error) return;
         fetchSummary();
-    }, [isExpanded, response, isLoading, error, fetchSummary]);
+    }, [response, isLoading, error, fetchSummary]);
 
     const handleRetry = () => {
         // Retry directly rather than relying on the effect — the effect's
@@ -66,63 +69,27 @@ const SummarySection: React.FC<SummarySectionProps> = ({ groupId, shareLinkId, c
     };
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded shadow-sm dark:shadow-gray-900/50 mb-4">
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full p-4 lg:p-6 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:bg-gray-50 dark:focus:bg-gray-700 rounded"
-                aria-expanded={isExpanded}
-                aria-controls="summary-section-content"
-            >
-                <h2 className="text-base lg:text-lg font-medium text-gray-900 dark:text-gray-100">
-                    Summary
-                </h2>
-                <span className="text-gray-400 dark:text-gray-500 text-xl" aria-hidden="true">
-                    {isExpanded ? '−' : '+'}
-                </span>
-            </button>
+        <div>
+            {isLoading && <SummarySkeleton isPublic={isPublic} />}
 
-            {isExpanded && (
-                <div
-                    id="summary-section-content"
-                    className="px-4 lg:px-6 pb-4 lg:pb-6 border-t dark:border-gray-700"
-                >
-                    {isLoading && (
-                        <SummarySkeleton isPublic={isPublic} />
-                    )}
-
-                    {error && !isLoading && (
-                        <div
-                            role="alert"
-                            aria-live="assertive"
-                            className="mt-4 flex flex-col items-start gap-3 text-sm"
-                        >
-                            <p className="text-red-600 dark:text-red-400">
-                                {error}
-                            </p>
-                            <button
-                                type="button"
-                                onClick={handleRetry}
-                                aria-label="Retry loading summary"
-                                className="px-3 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600"
-                            >
-                                Retry
-                            </button>
-                        </div>
-                    )}
-
-                    {!isLoading && !error && response && (
-                        <div className="mt-4">
-                            {isPublic ? (
-                                <PublicSummaryContent response={response as PublicGroupSummaryResponse} />
-                            ) : (
-                                <AuthSummaryContent
-                                    response={response as GroupSummaryResponse}
-                                    currentUserId={currentUserId}
-                                />
-                            )}
-                        </div>
-                    )}
+            {error && !isLoading && (
+                <div role="alert" aria-live="assertive" className="flex flex-col items-start gap-2.5">
+                    <Notice tone="error">{error}</Notice>
+                    <Button variant="secondary" onClick={handleRetry}>
+                        Try again
+                    </Button>
                 </div>
+            )}
+
+            {!isLoading && !error && response && (
+                isPublic ? (
+                    <PublicSummaryContent response={response as PublicGroupSummaryResponse} />
+                ) : (
+                    <AuthSummaryContent
+                        response={response as GroupSummaryResponse}
+                        currentUserId={currentUserId}
+                    />
+                )
             )}
         </div>
     );
@@ -142,7 +109,7 @@ const AuthSummaryContent: React.FC<AuthSummaryContentProps> = ({ response, curre
         <>
             <MemberConsumptionTable response={response} currentUserId={currentUserId} />
             {response.series.length > 0 && (
-                <div className="mt-6">
+                <div className="mt-5">
                     <SpendingTrendChart
                         mode="stacked"
                         series={response.series}
@@ -184,9 +151,7 @@ const PublicSummaryContent: React.FC<PublicSummaryContentProps> = ({ response })
                     currency={currency}
                 />
             ) : (
-                <p className="text-sm italic text-gray-500 dark:text-gray-400 py-4">
-                    No spending yet.
-                </p>
+                <p className="text-[13px] text-sw-dim py-4">No spending yet.</p>
             )}
         </div>
     );
@@ -204,12 +169,12 @@ const SummarySkeleton: React.FC<SummarySkeletonProps> = ({ isPublic }) => {
     // 3 rows on auth (per-member list), 1 row on public (group-total header only).
     const rowCount = isPublic ? 1 : 3;
     return (
-        <div className="mt-4" aria-busy="true" aria-live="polite">
-            <div className="space-y-3">
+        <div aria-busy="true" aria-live="polite">
+            <div className="flex flex-col gap-3">
                 {Array.from({ length: rowCount }).map((_, i) => (
                     <div
                         key={i}
-                        className="animate-pulse bg-gray-200 dark:bg-gray-700 rounded"
+                        className="animate-pulse bg-sw-raise rounded-sw-row"
                         style={{ height: 48 }}
                     />
                 ))}
@@ -217,7 +182,7 @@ const SummarySkeleton: React.FC<SummarySkeletonProps> = ({ isPublic }) => {
             {/* Chart skeleton: h-60 = 240px (mobile), sm:h-80 = 320px (desktop),
                 matching SpendingTrendChart's responsive heights. */}
             <div
-                className="mt-6 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded h-60 sm:h-80"
+                className="mt-5 w-full animate-pulse bg-sw-raise rounded-sw-row h-60 sm:h-80"
                 aria-hidden="true"
             />
         </div>

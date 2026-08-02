@@ -464,24 +464,155 @@ export const balancesApi = {
         return response.json();
     },
 
-    settleUp: async (
-        creditorId: number,
-        creditorIsGuest: boolean,
-        amount: number,
-        currency: string,
-        groupId?: number
-    ) => {
-        const response = await apiFetch('/settle-up', {
+};
+
+// ============================================================================
+// Tabs API
+// ============================================================================
+
+export const tabsApi = {
+    getAll: async (statusFilter?: string) => {
+        const url = statusFilter ? `/tabs?status_filter=${statusFilter}` : '/tabs';
+        const response = await apiFetch(url);
+        if (!response.ok) throw new Error('Failed to fetch tabs');
+        return response.json();
+    },
+
+    getById: async (tabId: number) => {
+        const response = await apiFetch(`/tabs/${tabId}`);
+        if (!response.ok) throw new Error('Failed to fetch tab');
+        return response.json();
+    },
+
+    create: async (payload: {
+        name: string;
+        currency?: string;
+        items: { description: string; price: number }[];
+        tax?: number;
+        tip?: number;
+        total?: number | null;
+        receipt_image_path?: string | null;
+    }) => {
+        const response = await apiFetch('/tabs', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to open the tab');
+        return response.json();
+    },
+
+    addItem: async (tabId: number, description: string, price: number) => {
+        const response = await apiFetch(`/tabs/${tabId}/items`, {
+            method: 'POST',
+            body: JSON.stringify({ description, price }),
+        });
+        if (!response.ok) throw new Error('Failed to add the item');
+        return response.json();
+    },
+
+    deleteItem: async (tabId: number, itemId: number) => {
+        const response = await apiFetch(`/tabs/${tabId}/items/${itemId}`, {
+            method: 'DELETE',
+        });
+        if (!response.ok) throw new Error('Failed to remove the item');
+        return response.json();
+    },
+
+    close: async (tabId: number, payerParticipantId?: number | null) => {
+        const response = await apiFetch(`/tabs/${tabId}/close`, {
             method: 'POST',
             body: JSON.stringify({
-                creditor_id: creditorId,
-                creditor_is_guest: creditorIsGuest,
-                amount,
-                currency,
-                group_id: groupId,
+                payer_participant_id: payerParticipantId ?? null,
             }),
         });
-        return response;
+        if (!response.ok) {
+            const detail = await response.json().catch(() => ({}));
+            throw new Error(detail.detail || 'Failed to close the tab');
+        }
+        return response.json();
+    },
+
+    // Claim as the signed-in participant. Distinct from publicTabsApi.claim:
+    // identity comes from the session, not from a claim token.
+    claimOwn: async (tabId: number, itemId: number, claimed: boolean) => {
+        const response = await apiFetch(`/tabs/${tabId}/items/${itemId}/claim`, {
+            method: 'POST',
+            body: JSON.stringify({ claimed }),
+        });
+        if (!response.ok) throw new Error('Could not update that item');
+        return response.json();
+    },
+
+    // Owner-only: tick a line on someone else's behalf. Somebody at the table
+    // always leaves early or never opens the link.
+    setClaim: async (
+        tabId: number,
+        itemId: number,
+        participantId: number,
+        claimed: boolean
+    ) => {
+        const response = await apiFetch(
+            `/tabs/${tabId}/items/${itemId}/claim/${participantId}`,
+            { method: 'POST', body: JSON.stringify({ claimed }) }
+        );
+        if (!response.ok) throw new Error('Could not update that item');
+        return response.json();
+    },
+
+    revoke: async (tabId: number) => {
+        const response = await apiFetch(`/tabs/${tabId}/revoke`, { method: 'POST' });
+        if (!response.ok) throw new Error('Failed to revoke the link');
+        return response.json();
+    },
+};
+
+// Public tab endpoints. Unauthenticated by design — the share token IS the
+// credential — so these bypass apiFetch and never attach a bearer token.
+export const publicTabsApi = {
+    get: async (shareToken: string) => {
+        const response = await fetch(
+            `${API_BASE_URL}/public/tabs/${encodeURIComponent(shareToken)}`
+        );
+        if (response.status === 410) throw new Error('This link has expired');
+        if (!response.ok) throw new Error('This link is no longer valid');
+        return response.json();
+    },
+
+    join: async (shareToken: string, displayName: string) => {
+        const response = await fetch(
+            `${API_BASE_URL}/public/tabs/${encodeURIComponent(shareToken)}/join`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ display_name: displayName }),
+            }
+        );
+        if (!response.ok) {
+            const detail = await response.json().catch(() => ({}));
+            throw new Error(detail.detail || 'Could not join this tab');
+        }
+        return response.json();
+    },
+
+    claim: async (
+        shareToken: string,
+        itemId: number,
+        claimToken: string,
+        claimed: boolean
+    ) => {
+        const response = await fetch(
+            `${API_BASE_URL}/public/tabs/${encodeURIComponent(shareToken)}/items/${itemId}/claim`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ claim_token: claimToken, claimed }),
+            }
+        );
+        if (!response.ok) {
+            const detail = await response.json().catch(() => ({}));
+            throw new Error(detail.detail || 'Could not update that item');
+        }
+        return response.json();
     },
 };
 

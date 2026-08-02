@@ -187,3 +187,84 @@ const recentCurrencies = JSON.parse(localStorage.getItem('recentCurrencies') || 
 recentCurrencies.unshift(selectedCurrency);
 localStorage.setItem('recentCurrencies', JSON.stringify(recentCurrencies.slice(0, 3)));
 ```
+
+## Venmo Hand-off on Settle Up
+
+Splitwiser records that a debt was settled; it never moves money. This closes
+the gap between the two by handing the payment to Venmo with the recipient,
+amount and note already filled in, so nobody retypes a figure they might get
+wrong.
+
+### Setting a handle
+
+- `User.venmo_username` — nullable, no default. Absent means "I haven't set
+  one", which is the right starting state for every existing user.
+- Set from Account settings. The server strips a leading `@` and surrounding
+  whitespace, so pasting `@maya-chen` straight off Venmo works.
+- An **empty** value clears the handle; **omitting** the field leaves it alone.
+  That distinction matters because saving any other part of the profile must
+  not wipe it.
+- Validation is deliberately loose beyond the obvious unsafe characters
+  (`[A-Za-z0-9_-]`, max 30). Venmo owns the rules for what handles exist and
+  has changed them before — rejecting a handle somebody actually has would be
+  worse than letting a bad one through, where the link just lands on a Venmo
+  page that says no such user.
+
+### Who can see it
+
+Two audiences, both people you already share money with:
+
+- **Friends** — `GET /friends` carries `venmo_username`.
+- **Fellow group members** — `GET /simplify_debts/{group_id}` returns a
+  `participants` array beside `transactions`, giving each id a `display_name`
+  and `venmo_username`. That endpoint already requires group membership, which
+  is exactly the right gate. It also fixes an older wart: the settle screen
+  could only name people from the friends list, so a group member you had not
+  befriended read as "Person 7".
+
+**Not** in any public payload — `test_venmo_username.py` asserts the string
+never appears in a share-link response. A payment handle must not ride along
+with a link handed to strangers.
+
+### The link
+
+Built by `frontend/src/utils/venmo.ts`:
+
+```
+https://venmo.com/?txn=pay&audience=private&recipients=<handle>&amount=<dollars>&note=<note>
+```
+
+- **`txn`** is `pay` when you owe them and `charge` when they owe you, so the
+  button reads "Pay with Venmo" or "Ask on Venmo".
+- **The app scheme first, https as the fallback.** `buildVenmoLinks` returns
+  both — `venmo://paycharge?<same query>` and the https form. On a touch device
+  `openVenmo` fires the scheme, then falls back to https unless the page gets
+  hidden first, since being backgrounded is what actually happens when another
+  app takes over. Any of `visibilitychange`, `pagehide` or `blur` counts,
+  because which one fires varies by browser. On a device with no coarse pointer
+  there is no app to reach, so it skips the scheme and opens https directly
+  rather than burning the timeout.
+- The button is still a real `<a href>` pointing at the https link, so it can
+  be copied, middle-clicked and opened in a new tab; the click handler only
+  upgrades an ordinary left-click, and bows out on meta/ctrl/shift.
+- **USD only.** Venmo has no notion of the other currencies this app supports,
+  and pre-filling `52.14` from a EUR debt would ask for the wrong number of
+  dollars. `buildVenmoLink` returns `null` for anything else and the UI says
+  why rather than silently dropping the button.
+- The note is plain ASCII: it lands in a Venmo memo, where a middot arrives as
+  `%C2%B7`.
+
+### It does not mark anything paid
+
+Opening Venmo is not proof of payment — there is no callback and no way to
+learn whether the transfer went through. "Mark as paid" stays a separate,
+deliberate action that records the settlement expense exactly as before. The
+row says so in as many words.
+
+### Where it does not appear
+
+- Guests, who have no account and therefore no handle.
+- Friends who haven't set one — no button and no explanation, since there's
+  nothing to explain.
+- Group members who aren't friends: the settle-up screen only has the friends
+  list to look handles up in.
