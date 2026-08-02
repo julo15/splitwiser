@@ -162,44 +162,44 @@ input[type="number"] {
 }
 
 /*
- * Chart palette — 8 member colors plus an "Others" overflow gray.
- * Values chosen to clear WCAG AA 3:1 non-text contrast against both
- * bg-white (#ffffff) in light mode and bg-gray-800 (#1f2937) in dark mode.
+ * Chart palette — 8 member colors plus an "Others" overflow.
  *
- * Light-mode hexes draw from Tailwind's -600 shades; dark-mode hexes draw
- * from -400 shades so they pop against the dark surface.
+ * Nocturne has no categorical ramp: it is an accent, two money tones and a
+ * stack of neutrals. A stacked-by-member chart needs hues that separate, so
+ * this is a purpose-built set — eight roughly even steps around the wheel,
+ * held at the muted chroma the rest of the app uses rather than saturated
+ * primaries, with the accent leading so the biggest spender ties to the
+ * colour the app already uses for emphasis.
  *
- * Palette order:
- *   1 teal    2 indigo   3 amber    4 rose
- *   5 emerald 6 violet   7 orange   8 sky
- * Overflow: gray-400 (light) / gray-500 (dark) for the "Others" aggregate.
+ * Slots are assigned by total descending, so slot 1 is the top spender.
+ * Axis, grid and overflow are plain --sw-* references and need no per-theme
+ * value of their own.
  */
 :root {
-    --chart-color-1: #0d9488; /* teal-600 */
-    --chart-color-2: #4f46e5; /* indigo-600 */
-    --chart-color-3: #d97706; /* amber-600 */
-    --chart-color-4: #e11d48; /* rose-600 */
-    --chart-color-5: #059669; /* emerald-600 */
-    --chart-color-6: #7c3aed; /* violet-600 */
-    --chart-color-7: #ea580c; /* orange-600 */
-    --chart-color-8: #0284c7; /* sky-600 */
-    --chart-overflow: #9ca3af; /* gray-400 */
-    --chart-axis: #6b7280;   /* gray-500, axis lines + ticks in light mode */
-    --chart-axis-text: #374151; /* gray-700, tick labels in light mode */
-    --chart-grid: #e5e7eb;   /* gray-200, faint horizontal rules */
+    --chart-color-1: #796cbf; /* accent violet */
+    --chart-color-2: #3f7a9e; /* blue */
+    --chart-color-3: #2e8478; /* teal */
+    --chart-color-4: #4a8a45; /* green */
+    --chart-color-5: #a3792f; /* amber */
+    --chart-color-6: #b0563f; /* rust */
+    --chart-color-7: #ab4a76; /* pink */
+    --chart-color-8: #8c4fa0; /* magenta */
 }
 
 .dark {
-    --chart-color-1: #2dd4bf; /* teal-400 */
-    --chart-color-2: #818cf8; /* indigo-400 */
-    --chart-color-3: #fbbf24; /* amber-400 */
-    --chart-color-4: #fb7185; /* rose-400 */
-    --chart-color-5: #34d399; /* emerald-400 */
-    --chart-color-6: #a78bfa; /* violet-400 */
-    --chart-color-7: #fb923c; /* orange-400 */
-    --chart-color-8: #38bdf8; /* sky-400 */
-    --chart-overflow: #6b7280; /* gray-500 */
-    --chart-axis: #9ca3af;   /* gray-400 */
-    --chart-axis-text: #d1d5db; /* gray-300 */
-    --chart-grid: #374151;   /* gray-700 */
+    --chart-color-1: #9184d9; /* accent violet */
+    --chart-color-2: #6ba8cc; /* blue */
+    --chart-color-3: #57b3a4; /* teal */
+    --chart-color-4: #7cc16f; /* green */
+    --chart-color-5: #d4ab5e; /* amber */
+    --chart-color-6: #e0836c; /* rust */
+    --chart-color-7: #d97fa8; /* pink */
+    --chart-color-8: #b787d4; /* magenta */
+}
+
+:root, .dark {
+    --chart-overflow: var(--sw-dim);
+    --chart-axis: var(--sw-line);
+    --chart-axis-text: var(--sw-dim);
+    --chart-grid: var(--sw-line);
 }

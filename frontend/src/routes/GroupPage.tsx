@@ -21,6 +21,9 @@ import {
 import GroupExpenseList from '../components/group/GroupExpenseList';
 import GroupBalanceBars from '../components/group/GroupBalanceBars';
 import OpenExpensePane from '../components/group/OpenExpensePane';
+import GroupPersonSheet from '../components/group/GroupPersonSheet';
+import type { GroupPerson } from '../components/group/GroupPersonSheet';
+import SummarySection from '../components/summary/SummarySection';
 import AddExpenseModal from '../AddExpenseModal';
 import ExpenseDetailModal from '../ExpenseDetailModal';
 import EditGroupModal from '../EditGroupModal';
@@ -38,7 +41,10 @@ import { netForGroup } from '../utils/groupBalances';
 import type { GroupExpense } from '../hooks/useGroupData';
 
 type ExpenseFilter = 'all' | 'expenses' | 'settlements' | 'mine';
-type MobileTab = 'expenses' | 'balances' | 'people';
+
+/** What the panel beside the expenses is showing. */
+type GroupView = 'balances' | 'spending';
+type MobileTab = 'expenses' | 'balances' | 'spending' | 'people';
 
 /**
  * The group workspace.
@@ -84,6 +90,8 @@ const GroupPage: React.FC = () => {
     const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
     const [addMemberOpen, setAddMemberOpen] = useState(false);
     const [addGuestOpen, setAddGuestOpen] = useState(false);
+    const [openPerson, setOpenPerson] = useState<GroupPerson | null>(null);
+    const [groupView, setGroupView] = useState<GroupView>('balances');
     const [simplifyOpen, setSimplifyOpen] = useState(false);
 
     const refreshEverything = useCallback(async () => {
@@ -256,6 +264,16 @@ const GroupPage: React.FC = () => {
                 guests={group.guests ?? []}
                 onPaymentCreated={refreshEverything}
             />
+
+            <GroupPersonSheet
+                person={openPerson}
+                onClose={() => setOpenPerson(null)}
+                groupId={id!}
+                members={group.members ?? []}
+                guests={group.guests ?? []}
+                currentUserId={user?.id}
+                onChanged={refreshEverything}
+            />
         </>
     );
 
@@ -297,12 +315,19 @@ const GroupPage: React.FC = () => {
                 </div>
             </div>
             <div className="flex flex-wrap gap-[7px]">
+                {/*
+                  * Each chip opens the sheet holding everything you can do to
+                  * that person: claim, link their balance, remove, befriend.
+                  */}
                 {group.members?.map((member) => {
                     const isMe = member.user_id === user?.id;
                     return (
-                        <span
+                        <button
+                            type="button"
                             key={`m-${member.id}`}
-                            className="flex items-center gap-[7px] pl-[5px] pr-[11px] py-[5px] rounded-full bg-sw-surface shadow-[0_0_0_1px_var(--sw-line)] text-[12.5px]"
+                            onClick={() => setOpenPerson({ kind: 'member', member })}
+                            aria-label={`Manage ${member.full_name}`}
+                            className="flex items-center gap-[7px] pl-[5px] pr-[11px] py-[5px] rounded-full bg-sw-surface shadow-[0_0_0_1px_var(--sw-line)] text-[12.5px] hover:bg-sw-raise focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                         >
                             <Avatar
                                 name={member.full_name}
@@ -310,40 +335,75 @@ const GroupPage: React.FC = () => {
                                 variant={isMe ? 'accent' : 'neutral'}
                             />
                             {isMe ? 'You' : member.full_name}
-                        </span>
+                            {member.managed_by_name && (
+                                <span className="text-sw-dim">
+                                    → {member.managed_by_name}
+                                </span>
+                            )}
+                        </button>
                     );
                 })}
                 {group.guests?.map((guest) => (
-                    <span
+                    <button
+                        type="button"
                         key={`g-${guest.id}`}
-                        className="flex items-center gap-[7px] pl-[5px] pr-[11px] py-[5px] rounded-full bg-sw-surface shadow-[0_0_0_1px_var(--sw-line)] text-[12.5px] text-sw-muted"
+                        onClick={() => setOpenPerson({ kind: 'guest', guest })}
+                        aria-label={`Manage ${guest.name}`}
+                        className="flex items-center gap-[7px] pl-[5px] pr-[11px] py-[5px] rounded-full bg-sw-surface shadow-[0_0_0_1px_var(--sw-line)] text-[12.5px] text-sw-muted hover:bg-sw-raise focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                     >
                         <Avatar name={guest.name} size={22} />
                         {guest.name} · guest
-                    </span>
+                        {guest.managed_by_name && (
+                            <span className="text-sw-dim">
+                                → {guest.managed_by_name}
+                            </span>
+                        )}
+                    </button>
                 ))}
             </div>
         </div>
     );
 
+    /*
+     * Balances and spending answer different questions off the same expenses:
+     * balances net to zero and go quiet once everyone has settled, spending
+     * never nets. They share this slot rather than stacking, so neither buries
+     * the other.
+     */
     const balancesSection = (
         <div className="p-[18px] border-b border-sw-line">
             <div className="flex items-center gap-2 mb-3">
-                <div className="text-[11px] uppercase tracking-[0.09em] text-sw-dim">
-                    Balances
-                </div>
-                <div className="ml-auto">{currencyToggle}</div>
+                <SegmentedControl
+                    label="Group view"
+                    size="sm"
+                    value={groupView}
+                    onChange={(value) => setGroupView(value as GroupView)}
+                    options={[
+                        { value: 'balances', label: 'Balances' },
+                        { value: 'spending', label: 'Spending' },
+                    ]}
+                />
+                {groupView === 'balances' && (
+                    <div className="ml-auto">{currencyToggle}</div>
+                )}
             </div>
-            <GroupBalanceBars balances={balances} currentUserId={user?.id} />
-            <Button
-                variant="primary"
-                block
-                icon={<Lightning size={15} />}
-                onClick={() => setSimplifyOpen(true)}
-                className="mt-3.5"
-            >
-                Simplify debts
-            </Button>
+
+            {groupView === 'balances' ? (
+                <>
+                    <GroupBalanceBars balances={balances} currentUserId={user?.id} />
+                    <Button
+                        variant="primary"
+                        block
+                        icon={<Lightning size={15} />}
+                        onClick={() => setSimplifyOpen(true)}
+                        className="mt-3.5"
+                    >
+                        Simplify debts
+                    </Button>
+                </>
+            ) : (
+                <SummarySection groupId={id} currentUserId={user?.id ?? null} />
+            )}
         </div>
     );
 
@@ -586,6 +646,7 @@ const GroupPage: React.FC = () => {
                     options={[
                         { value: 'expenses', label: 'Expenses' },
                         { value: 'balances', label: 'Balances' },
+                        { value: 'spending', label: 'Spending' },
                         { value: 'people', label: 'People' },
                     ]}
                     className="w-full"
@@ -606,6 +667,11 @@ const GroupPage: React.FC = () => {
                     <div className="pt-3">
                         <div className="flex justify-end mb-3">{currencyToggle}</div>
                         <GroupBalanceBars balances={balances} currentUserId={user?.id} />
+                    </div>
+                )}
+                {mobileTab === 'spending' && (
+                    <div className="pt-3">
+                        <SummarySection groupId={id} currentUserId={user?.id ?? null} />
                     </div>
                 )}
                 {mobileTab === 'people' && (

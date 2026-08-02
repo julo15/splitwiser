@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Avatar, Money } from '../components/ui';
+import { UserPlus } from '@phosphor-icons/react';
+import { Avatar, Button, Money } from '../components/ui';
+import AddPersonSheet from '../components/AddPersonSheet';
 import PageHeader from './PageHeader';
 import { useAppData } from '../contexts/AppDataContext';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -95,7 +97,8 @@ const Section: React.FC<{
 const PeoplePage: React.FC = () => {
     usePageTitle('People');
     const navigate = useNavigate();
-    const { friends } = useAppData();
+    const { friends, refreshFriends } = useAppData();
+    const [addOpen, setAddOpen] = useState(false);
     const { counterparties, loading } = useSettlement();
 
     const { owed, owing, square } = useMemo(() => {
@@ -163,15 +166,35 @@ const PeoplePage: React.FC = () => {
                 title="People"
                 caption="Who you owe, and who owes you"
                 mobileInset
+                actions={
+                    <Button
+                        variant="secondary"
+                        icon={<UserPlus size={15} />}
+                        onClick={() => setAddOpen(true)}
+                    >
+                        Add someone
+                    </Button>
+                }
             />
 
             <div className="flex-1 overflow-auto px-2.5 pb-4 flex flex-col gap-0.5 max-w-3xl">
                 {loading ? (
                     <p className="text-sm text-sw-dim py-8 text-center">Loading…</p>
                 ) : empty ? (
-                    <p className="text-sm text-sw-dim px-1.5 py-8 text-center">
-                        Nobody yet. Add an expense and the people in it show up here.
-                    </p>
+                    <div className="flex flex-col items-center gap-3 py-12 px-1.5">
+                        <p className="text-sm text-sw-dim text-center">
+                            Nobody yet. Add someone by email, or put them in a group
+                            and they turn up here.
+                        </p>
+                        <Button
+                            variant="primary"
+                            icon={<UserPlus size={15} />}
+                            onClick={() => setAddOpen(true)}
+                            className="min-h-[42px]"
+                        >
+                            Add someone
+                        </Button>
+                    </div>
                 ) : (
                     <>
                         <Section label="Owes you" people={owed} onOpen={openPerson} />
@@ -180,6 +203,12 @@ const PeoplePage: React.FC = () => {
                     </>
                 )}
             </div>
+
+            <AddPersonSheet
+                open={addOpen}
+                onClose={() => setAddOpen(false)}
+                onAdded={refreshFriends}
+            />
         </>
     );
 };

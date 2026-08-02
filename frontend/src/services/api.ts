@@ -463,25 +463,6 @@ export const balancesApi = {
         return response.json();
     },
 
-    settleUp: async (
-        creditorId: number,
-        creditorIsGuest: boolean,
-        amount: number,
-        currency: string,
-        groupId?: number
-    ) => {
-        const response = await apiFetch('/settle-up', {
-            method: 'POST',
-            body: JSON.stringify({
-                creditor_id: creditorId,
-                creditor_is_guest: creditorIsGuest,
-                amount,
-                currency,
-                group_id: groupId,
-            }),
-        });
-        return response;
-    },
 };
 
 // ============================================================================

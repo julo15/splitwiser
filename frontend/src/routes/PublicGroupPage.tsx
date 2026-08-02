@@ -4,13 +4,14 @@ import { SignIn, UserPlus } from '@phosphor-icons/react';
 import { Avatar, Button, Card, SegmentedControl } from '../components/ui';
 import GroupExpenseList from '../components/group/GroupExpenseList';
 import GroupBalanceBars from '../components/group/GroupBalanceBars';
+import SummarySection from '../components/summary/SummarySection';
 import { useAuth } from '../AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { usePublicGroupData } from '../hooks/usePublicGroupData';
 import { api } from '../services/api';
 import type { GroupExpense } from '../hooks/useGroupData';
 
-type Section = 'expenses' | 'balances' | 'people';
+type Section = 'expenses' | 'balances' | 'spending' | 'people';
 
 /**
  * A group opened from a share link.
@@ -175,6 +176,7 @@ const PublicGroupPage: React.FC = () => {
                     options={[
                         { value: 'expenses', label: 'Expenses' },
                         { value: 'balances', label: 'Balances' },
+                        { value: 'spending', label: 'Spending' },
                         { value: 'people', label: 'People' },
                     ]}
                     className="w-full"
@@ -210,6 +212,20 @@ const PublicGroupPage: React.FC = () => {
                             />
                         </div>
                         <GroupBalanceBars balances={balances} />
+                    </div>
+                )}
+
+                {/*
+                  * Deliberately narrower than the signed-in summary: the group
+                  * total and a single series, never who spent what. A share
+                  * link should not name the people behind the numbers.
+                  */}
+                {section === 'spending' && (
+                    <div className="pt-4">
+                        <SummarySection
+                            shareLinkId={shareLinkId}
+                            currentUserId={null}
+                        />
                     </div>
                 )}
 
