@@ -2,10 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { balancesApi } from '../services/api';
 import { useAppData } from '../contexts/AppDataContext';
 import { useAuth } from '../AuthContext';
-import { paymentsForUser, settlementForUser } from '../utils/settlement';
+import {
+    participantDirectory,
+    paymentsForUser,
+    settlementForUser,
+} from '../utils/settlement';
 import type {
     Counterparty,
     GroupTransactions,
+    SettlementParticipant,
     SuggestedPayment,
 } from '../utils/settlement';
 
@@ -22,6 +27,11 @@ export function useSettlement(): {
     counterparties: Counterparty[];
     /** Per group, so each one can be recorded as a settlement expense. */
     payments: SuggestedPayment[];
+    /**
+     * Who the ids refer to, keyed by `participantKey`. Covers everyone in your
+     * groups, not just the ones you have befriended.
+     */
+    directory: Map<string, SettlementParticipant>;
     loading: boolean;
     reload: () => void;
 } {
@@ -55,6 +65,7 @@ export function useSettlement(): {
                         groupId: group.id,
                         groupName: group.name,
                         transactions: data.transactions ?? [],
+                        participants: data.participants ?? [],
                     };
                 } catch (error) {
                     console.error(`Failed to simplify debts for ${group.name}:`, error);
@@ -62,6 +73,7 @@ export function useSettlement(): {
                         groupId: group.id,
                         groupName: group.name,
                         transactions: [],
+                        participants: [],
                     };
                 }
             })
@@ -89,7 +101,9 @@ export function useSettlement(): {
         [byGroup, user]
     );
 
+    const directory = useMemo(() => participantDirectory(byGroup), [byGroup]);
+
     const reload = useCallback(() => setNonce((n) => n + 1), []);
 
-    return { counterparties, payments, loading, reload };
+    return { counterparties, payments, directory, loading, reload };
 }

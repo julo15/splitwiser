@@ -15,9 +15,10 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { useSettlement } from '../hooks/useSettlement';
 import { api } from '../services/api';
 import { formatDateForInput } from '../utils/formatters';
-import { settlementTotal } from '../utils/settlement';
-import { buildVenmoLink, VENMO_CURRENCY } from '../utils/venmo';
+import { participantKey, settlementTotal } from '../utils/settlement';
+import { buildVenmoLinks, openVenmo, VENMO_CURRENCY } from '../utils/venmo';
 import type { SuggestedPayment } from '../utils/settlement';
+import type { VenmoLinks } from '../utils/venmo';
 
 /**
  * Settle up, with the simplification up front rather than behind a button.
@@ -31,27 +32,29 @@ const SettleUpPage: React.FC = () => {
     const navigate = useNavigate();
     const isDesktop = useIsDesktop();
     const { user } = useAuth();
-    const { friends, groups, refreshAll } = useAppData();
-    const { counterparties, payments, loading, reload } = useSettlement();
+    const { friends, refreshAll } = useAppData();
+    const { counterparties, payments, directory, loading, reload } = useSettlement();
 
     const [recording, setRecording] = useState<string | null>(null);
     const [done, setDone] = useState<Set<string>>(new Set());
     const [error, setError] = useState<string | null>(null);
 
+    /**
+     * Names come from the directory the debt simplification returns, which
+     * covers everyone in the group. The friends list is only a fallback now —
+     * before, a group member you had not befriended read as "Person 7".
+     */
     const nameFor = useMemo(() => {
         const friendNames = new Map(friends.map((f) => [f.id, f.full_name]));
-        const guestNames = new Map<string, string>();
-        for (const group of groups) {
-            for (const guest of group.guests ?? []) {
-                guestNames.set(`${group.id}-${guest.id}`, guest.name);
-            }
-        }
-        return (payment: SuggestedPayment) =>
-            payment.isGuest
-                ? (guestNames.get(`${payment.groupId}-${payment.userId}`) ??
-                  'Guest')
-                : (friendNames.get(payment.userId) ?? `Person ${payment.userId}`);
-    }, [friends, groups]);
+        return (payment: SuggestedPayment) => {
+            const known = directory.get(
+                participantKey(payment.groupId, payment.userId, payment.isGuest)
+            );
+            if (known) return known.display_name;
+            if (payment.isGuest) return 'Guest';
+            return friendNames.get(payment.userId) ?? `Person ${payment.userId}`;
+        };
+    }, [friends, directory]);
 
     /**
      * The Venmo hand-off for a payment, or null when we cannot offer one:
@@ -62,11 +65,17 @@ const SettleUpPage: React.FC = () => {
         const handles = new Map(
             friends.map((friend) => [friend.id, friend.venmo_username ?? null])
         );
-        return (payment: SuggestedPayment): string | null => {
+        return (payment: SuggestedPayment): VenmoLinks | null => {
             if (payment.isGuest) return null;
-            const username = handles.get(payment.userId);
+            // Fellow group members are offered the hand-off too, whether or
+            // not you have befriended them.
+            const known = directory.get(
+                participantKey(payment.groupId, payment.userId, false)
+            );
+            const username =
+                known?.venmo_username ?? handles.get(payment.userId) ?? null;
             if (!username) return null;
-            return buildVenmoLink({
+            return buildVenmoLinks({
                 username,
                 amountCents: payment.amount,
                 currency: payment.currency,
@@ -77,7 +86,7 @@ const SettleUpPage: React.FC = () => {
                 note: `Settling up: ${payment.groupName}`,
             });
         };
-    }, [friends]);
+    }, [friends, directory]);
 
     const outstanding = payments.filter((p) => !done.has(p.key));
     const total = useMemo(() => settlementTotal(counterparties), [counterparties]);
@@ -243,9 +252,28 @@ const SettleUpPage: React.FC = () => {
                                                     <div className="flex gap-2">
                                                         {venmo && (
                                                             <Button
-                                                                href={venmo}
+                                                                /*
+                                                                 * A real href so it can be
+                                                                 * copied, middle-clicked and
+                                                                 * still work without JS; the
+                                                                 * handler upgrades the plain
+                                                                 * click to try the app first.
+                                                                 */
+                                                                href={venmo.web}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
+                                                                onClick={(event) => {
+                                                                    if (
+                                                                        event.metaKey ||
+                                                                        event.ctrlKey ||
+                                                                        event.shiftKey ||
+                                                                        event.button !== 0
+                                                                    ) {
+                                                                        return;
+                                                                    }
+                                                                    event.preventDefault();
+                                                                    openVenmo(venmo);
+                                                                }}
                                                                 variant="secondary"
                                                                 icon={
                                                                     <ArrowSquareOut

@@ -93,7 +93,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - Registered members can also be managed for balance aggregation
 - Refresh tokens stored hashed (SHA-256) in database with server-side revocation
 - Itemized expenses use proportional tax/tip distribution
-- Settling up can hand off to Venmo with the amount pre-filled; it never marks anything paid, since there is no callback
+- Settling up can hand off to Venmo (app scheme first, https fallback) with the amount pre-filled; it never marks anything paid, since there is no callback
 - Tabs are share-link bills with no group: high-entropy expiring write tokens, anonymous claimers held by their own claim token, unclaimed lines spread across everyone at close
 - Receipt uploads (images and PDFs) stored in `data/receipts/` directory (configurable via `DATA_DIR` env var); PDFs are rasterized per-page for the LLM but the original file is preserved
 
@@ -169,7 +169,7 @@ ALTER TABLE table_name ADD COLUMN column_name TYPE DEFAULT 'value';
 
 ### Balances & Currency
 - `GET /balances` - User balance summary across all groups
-- `GET /simplify_debts/{group_id}` - Debt simplification
+- `GET /simplify_debts/{group_id}` - Debt simplification, plus a `participants` directory (display name + Venmo handle) for the ids in it
 - `GET /exchange_rates` - Current exchange rates
 
 ### OCR

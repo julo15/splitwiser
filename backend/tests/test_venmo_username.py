@@ -131,3 +131,128 @@ class TestWhoCanSeeIt:
 
         # Not friends, so Vince does not appear at all.
         assert client.get("/friends", headers=mallory).json() == []
+
+
+class TestSettlementDirectory:
+    """
+    /simplify_debts returns bare ids. Without a directory alongside them the
+    caller can only name people it already knows — friends — so a fellow group
+    member reads as a number and gets no Venmo hand-off.
+    """
+
+    def make_group_with_debt(self, client, owner, other_email, other_name):
+        """Owner pays for something split with `other`, so `other` owes them."""
+        other = register(client, other_email, other_name)
+        group = client.post(
+            "/groups", json={"name": "Tahoe", "default_currency": "USD"}, headers=owner
+        ).json()
+        client.post(
+            f"/groups/{group['id']}/members",
+            json={"email": other_email},
+            headers=owner,
+        )
+
+        me = client.get("/users/me", headers=owner).json()
+        them = client.get("/users/me", headers=other).json()
+        client.post(
+            "/expenses",
+            json={
+                "description": "Groceries",
+                "amount": 10000,
+                "currency": "USD",
+                "date": "2026-07-28",
+                "group_id": group["id"],
+                "payer_id": me["id"],
+                "split_type": "EQUAL",
+                "splits": [
+                    {"user_id": me["id"], "is_guest": False, "amount_owed": 5000},
+                    {"user_id": them["id"], "is_guest": False, "amount_owed": 5000},
+                ],
+            },
+            headers=owner,
+        )
+        return group, other, them
+
+    def test_participants_name_a_group_member_who_is_not_a_friend(self, client):
+        owner = register(client, "vince@example.com", "Vince Woo")
+        group, _, them = self.make_group_with_debt(
+            client, owner, "maya@example.com", "Maya Chen"
+        )
+
+        body = client.get(f"/simplify_debts/{group['id']}", headers=owner).json()
+        entry = next(
+            p for p in body["participants"] if p["user_id"] == them["id"]
+        )
+        assert entry["display_name"] == "Maya Chen"
+        assert entry["is_guest"] is False
+
+    def test_participants_carry_the_venmo_handle(self, client):
+        owner = register(client, "vince@example.com", "Vince Woo")
+        group, other, them = self.make_group_with_debt(
+            client, owner, "maya@example.com", "Maya Chen"
+        )
+        set_handle(client, other, "maya-chen")
+
+        body = client.get(f"/simplify_debts/{group['id']}", headers=owner).json()
+        entry = next(
+            p for p in body["participants"] if p["user_id"] == them["id"]
+        )
+        # Never befriended — group membership alone is enough.
+        assert client.get("/friends", headers=owner).json() == []
+        assert entry["venmo_username"] == "maya-chen"
+
+    def test_a_member_without_a_handle_reads_as_null(self, client):
+        owner = register(client, "vince@example.com", "Vince Woo")
+        group, _, them = self.make_group_with_debt(
+            client, owner, "maya@example.com", "Maya Chen"
+        )
+
+        body = client.get(f"/simplify_debts/{group['id']}", headers=owner).json()
+        entry = next(
+            p for p in body["participants"] if p["user_id"] == them["id"]
+        )
+        assert entry["venmo_username"] is None
+
+    def test_guests_are_named_but_have_no_handle(self, client):
+        owner = register(client, "vince@example.com", "Vince Woo")
+        group = client.post(
+            "/groups", json={"name": "Tahoe", "default_currency": "USD"}, headers=owner
+        ).json()
+        guest = client.post(
+            f"/groups/{group['id']}/guests", json={"name": "Tess"}, headers=owner
+        ).json()
+
+        me = client.get("/users/me", headers=owner).json()
+        client.post(
+            "/expenses",
+            json={
+                "description": "Groceries",
+                "amount": 10000,
+                "currency": "USD",
+                "date": "2026-07-28",
+                "group_id": group["id"],
+                "payer_id": me["id"],
+                "split_type": "EQUAL",
+                "splits": [
+                    {"user_id": me["id"], "is_guest": False, "amount_owed": 5000},
+                    {"user_id": guest["id"], "is_guest": True, "amount_owed": 5000},
+                ],
+            },
+            headers=owner,
+        )
+
+        body = client.get(f"/simplify_debts/{group['id']}", headers=owner).json()
+        entry = next(p for p in body["participants"] if p["is_guest"])
+        assert entry["display_name"] == "Tess"
+        assert entry["venmo_username"] is None
+
+    def test_a_stranger_cannot_read_the_directory(self, client):
+        """Membership is what gates this, exactly as it gates the transactions."""
+        owner = register(client, "vince@example.com", "Vince Woo")
+        group, _, _ = self.make_group_with_debt(
+            client, owner, "maya@example.com", "Maya Chen"
+        )
+        mallory = register(client, "mallory@example.com", "Mallory")
+
+        response = client.get(f"/simplify_debts/{group['id']}", headers=mallory)
+        assert response.status_code in (403, 404)

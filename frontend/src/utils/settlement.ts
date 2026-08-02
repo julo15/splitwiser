@@ -18,10 +18,55 @@ export interface SimplifiedTransaction {
     currency: string;
 }
 
+/**
+ * Who the ids in a group's transactions refer to. Returned alongside them by
+ * `/simplify_debts/{group_id}`, so the settle screen can name — and offer a
+ * Venmo hand-off to — people it is not friends with.
+ */
+export interface SettlementParticipant {
+    user_id: number;
+    is_guest: boolean;
+    display_name: string;
+    venmo_username: string | null;
+}
+
 export interface GroupTransactions {
     groupId: number;
     groupName: string;
     transactions: SimplifiedTransaction[];
+    /** Optional so an older cached response still parses. */
+    participants?: SettlementParticipant[];
+}
+
+/** Key a participant by group when they are a guest — guest ids repeat. */
+export function participantKey(
+    groupId: number,
+    userId: number,
+    isGuest: boolean
+): string {
+    return isGuest ? `guest-${groupId}-${userId}` : `user-${userId}`;
+}
+
+/**
+ * Flatten every group's participants into one lookup.
+ *
+ * Registered people collapse across groups (the same account everywhere);
+ * guests stay scoped to their group, because the same guest id in two groups
+ * is two different people.
+ */
+export function participantDirectory(
+    groups: GroupTransactions[]
+): Map<string, SettlementParticipant> {
+    const directory = new Map<string, SettlementParticipant>();
+    for (const { groupId, participants } of groups) {
+        for (const participant of participants ?? []) {
+            directory.set(
+                participantKey(groupId, participant.user_id, participant.is_guest),
+                participant
+            );
+        }
+    }
+    return directory;
 }
 
 export interface Counterparty {

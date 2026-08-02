@@ -212,10 +212,19 @@ wrong.
 
 ### Who can see it
 
-Returned in `GET /friends` and on your own profile. **Not** in any public
-payload — `test_venmo_username.py` asserts the string never appears in a share
-link response. A payment handle must not ride along with a link handed to
-strangers.
+Two audiences, both people you already share money with:
+
+- **Friends** — `GET /friends` carries `venmo_username`.
+- **Fellow group members** — `GET /simplify_debts/{group_id}` returns a
+  `participants` array beside `transactions`, giving each id a `display_name`
+  and `venmo_username`. That endpoint already requires group membership, which
+  is exactly the right gate. It also fixes an older wart: the settle screen
+  could only name people from the friends list, so a group member you had not
+  befriended read as "Person 7".
+
+**Not** in any public payload — `test_venmo_username.py` asserts the string
+never appears in a share-link response. A payment handle must not ride along
+with a link handed to strangers.
 
 ### The link
 
@@ -227,9 +236,17 @@ https://venmo.com/?txn=pay&audience=private&recipients=<handle>&amount=<dollars>
 
 - **`txn`** is `pay` when you owe them and `charge` when they owe you, so the
   button reads "Pay with Venmo" or "Ask on Venmo".
-- **`https`, not `venmo://`** — a universal link opens the app on a phone and
-  the website on a desktop. A custom scheme would simply fail on desktop, which
-  is where the settle-up screen has the most room.
+- **The app scheme first, https as the fallback.** `buildVenmoLinks` returns
+  both — `venmo://paycharge?<same query>` and the https form. On a touch device
+  `openVenmo` fires the scheme, then falls back to https unless the page gets
+  hidden first, since being backgrounded is what actually happens when another
+  app takes over. Any of `visibilitychange`, `pagehide` or `blur` counts,
+  because which one fires varies by browser. On a device with no coarse pointer
+  there is no app to reach, so it skips the scheme and opens https directly
+  rather than burning the timeout.
+- The button is still a real `<a href>` pointing at the https link, so it can
+  be copied, middle-clicked and opened in a new tab; the click handler only
+  upgrades an ordinary left-click, and bows out on meta/ctrl/shift.
 - **USD only.** Venmo has no notion of the other currencies this app supports,
   and pre-filling `52.14` from a EUR debt would ask for the wrong number of
   dollars. `buildVenmoLink` returns `null` for anything else and the UI says

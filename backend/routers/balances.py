@@ -9,7 +9,7 @@ import schemas
 from database import get_db
 from dependencies import get_current_user
 from utils.validation import get_group_or_404, verify_group_membership
-from utils.display import get_guest_display_name
+from utils.display import get_guest_display_name, get_participant_display_name
 from utils.balances import calculate_net_balances
 from utils.currency import (
     format_currency,
@@ -525,4 +525,25 @@ def simplify_debts(
         if creditor['amount'] < 0.01:
             j += 1
 
-    return {"transactions": transactions}
+    # Who the ids in those transactions refer to.
+    #
+    # Without this the caller has bare ids and can only name the people it
+    # already knows — i.e. friends — so a fellow group member you have not
+    # befriended shows up as a number, and cannot be offered a Venmo hand-off.
+    # This endpoint has already established that the caller is a member of the
+    # group, which is exactly the audience allowed to see both.
+    participants = []
+    for (uid, is_guest) in net_balances:
+        entry = {
+            "user_id": uid,
+            "is_guest": is_guest,
+            "display_name": get_participant_display_name(uid, is_guest, db),
+            "venmo_username": None,
+        }
+        if not is_guest:
+            user = db.query(models.User).filter(models.User.id == uid).first()
+            if user:
+                entry["venmo_username"] = user.venmo_username
+        participants.append(entry)
+
+    return {"transactions": transactions, "participants": participants}
