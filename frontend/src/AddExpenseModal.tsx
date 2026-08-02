@@ -10,6 +10,7 @@ import SplitDetailsInput from './components/expense/SplitDetailsInput';
 import IconSelector from './components/expense/IconSelector';
 import AddItemModal from './components/AddItemModal';
 import AlertDialog from './components/AlertDialog';
+import { Button, Notice } from './components/ui';
 import { useItemizedExpense } from './hooks/useItemizedExpense';
 import { useSplitDetails } from './hooks/useSplitDetails';
 import { useCurrencyPreferences } from './hooks/useCurrencyPreferences';
@@ -889,14 +890,14 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                         }}
                                         className="flex-1 border-b border-sw-line py-2 focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 bg-sw-surface text-sw-text placeholder:text-sw-dim"
                                     />
-                                    <button
-                                        type="button"
+                                    <Button
+                                        variant="secondary"
                                         onClick={addExpenseGuest}
                                         disabled={!newGuestName.trim()}
-                                        className="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                                        className="min-h-[44px]"
                                     >
                                         Add
-                                    </button>
+                                    </Button>
                                 </div>
 
                                 {/* List of added expense guests */}
@@ -905,18 +906,16 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                         {expenseGuests.map(guest => (
                                             <div
                                                 key={guest.temp_id}
-                                                className="flex items-center gap-1 px-3 py-2 bg-purple-100 dark:bg-purple-900/30 border border-purple-500 dark:border-purple-600 text-purple-700 dark:text-purple-300 rounded-full text-sm"
+                                                className="flex items-center gap-1 px-3 py-2 rounded-full text-sm bg-sw-accent-ghost text-sw-accent shadow-[0_0_0_1px_var(--sw-accent)]"
                                             >
                                                 <span>{guest.name}</span>
                                                 <button
                                                     type="button"
                                                     onClick={() => removeExpenseGuest(guest.temp_id)}
-                                                    className="ml-1 text-purple-500 hover:text-purple-700 dark:hover:text-purple-200"
+                                                    className="ml-1 opacity-70 hover:opacity-100 cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                                                     aria-label={`Remove ${guest.name}`}
                                                 >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
+                                                    <X size={14} />
                                                 </button>
                                             </div>
                                         ))}
@@ -999,24 +998,25 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
                                     {/* OCR Validation Warning */}
                                     {ocrValidationWarning && (
-                                        <div className="mb-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200 px-3 py-2 rounded-md text-sm">
-                                            <div className="flex items-start gap-2">
-                                                <span className="text-yellow-500 flex-shrink-0">⚠️</span>
-                                                <div>
-                                                    <p className="font-medium">Some items may be missing</p>
-                                                    <p className="text-xs mt-1 text-yellow-700 dark:text-yellow-300">{ocrValidationWarning}</p>
-                                                    <p className="text-xs mt-1 text-yellow-600 dark:text-yellow-400">Please review and add any missing items manually using the "+ Add" button.</p>
-                                                </div>
+                                        <Notice tone="error" className="mb-3">
+                                            <span className="flex items-start gap-2">
+                                                <span className="flex-1">
+                                                    <span className="font-medium block">Some items may be missing</span>
+                                                    <span className="block mt-1">{ocrValidationWarning}</span>
+                                                    <span className="block mt-1">
+                                                        Please review and add any missing items manually using the "Add item" button.
+                                                    </span>
+                                                </span>
                                                 <button
                                                     type="button"
                                                     onClick={() => setOcrValidationWarning(null)}
                                                     aria-label="Dismiss warning"
-                                                    className="text-yellow-500 hover:text-yellow-700 dark:hover:text-yellow-300 flex-shrink-0"
+                                                    className="flex-none opacity-70 hover:opacity-100 cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                                                 >
-                                                    ✕
+                                                    <X size={14} />
                                                 </button>
-                                            </div>
-                                        </div>
+                                            </span>
+                                        </Notice>
                                     )}
 
                                     <ExpenseItemList
@@ -1081,8 +1081,11 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                                         </div>
                                     </div>
 
-                                    <div className="mt-3 text-right text-base font-semibold dark:text-white">
-                                        Total: {currency} {calculateItemizedTotal(itemizedExpense.itemizedItems, itemizedExpense.taxAmount, itemizedExpense.tipAmount)}
+                                    <div className="mt-3 flex justify-between items-baseline pt-3 border-t border-sw-line">
+                                        <span className="text-[12.5px] text-sw-muted">Total</span>
+                                        <span className="sw-display text-base">
+                                            {currency} {calculateItemizedTotal(itemizedExpense.itemizedItems, itemizedExpense.taxAmount, itemizedExpense.tipAmount)}
+                                        </span>
                                     </div>
                                 </div>
                             )}
@@ -1112,19 +1115,23 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                         />
                     )}
 
-                    <div className="sticky bottom-0 bg-sw-surface border-t border-sw-line p-4 sm:p-5 flex justify-end space-x-3">
-                        <button type="button" onClick={onClose} disabled={isSubmitting} className="px-4 py-2 text-sw-dim hover:bg-sw-raise rounded min-h-[44px] disabled:opacity-50">Cancel</button>
-                        <button type="submit" disabled={isSubmitting} className="px-4 py-2 text-sw-accent border border-sw-accent rounded-lg hover:bg-[color-mix(in_srgb,var(--sw-accent)_12%,transparent)] min-h-[44px] disabled:opacity-45 disabled:cursor-not-allowed flex items-center justify-center font-medium">
-                            {isSubmitting ? (
-                                <>
-                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Saving...
-                                </>
-                            ) : 'Save'}
-                        </button>
+                    <div className="sticky bottom-0 bg-sw-surface border-t border-sw-line p-4 sm:p-5 flex justify-end gap-2">
+                        <Button variant="ghost" onClick={onClose} disabled={isSubmitting} className="min-h-[44px]">
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            disabled={isSubmitting}
+                            className="min-h-[44px]"
+                            icon={
+                                isSubmitting ? (
+                                    <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-sw-line border-t-sw-accent" />
+                                ) : undefined
+                            }
+                        >
+                            {isSubmitting ? 'Saving…' : 'Save'}
+                        </Button>
                     </div>
                 </form>
 

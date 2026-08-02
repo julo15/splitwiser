@@ -1,6 +1,7 @@
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { useState } from 'react';
 import { getApiUrl } from '../../api';
+import { useTheme } from '../../ThemeContext';
 
 interface GoogleAuthResponse {
   access_token: string;
@@ -25,6 +26,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   shareLinkId,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const { isDark } = useTheme();
 
   const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     if (!credentialResponse.credential) {
@@ -78,7 +80,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
     return (
       <div className="w-full flex justify-center py-2">
         <svg
-          className="animate-spin h-6 w-6 text-gray-400"
+          className="animate-spin h-6 w-6 text-sw-dim"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -103,12 +105,18 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
 
   return (
     <div className="w-full flex justify-center">
+      {/*
+        * Google renders this button itself, so it cannot take the app's
+        * tokens — the best available is picking whichever of its own themes
+        * sits correctly on the current surface. Left on "outline" it stayed a
+        * white button on the dark card.
+        */}
       <GoogleLogin
         onSuccess={handleGoogleSuccess}
         onError={() => onError('Google Sign-In was cancelled')}
         text="continue_with"
         shape="rectangular"
-        theme="outline"
+        theme={isDark ? 'filled_black' : 'outline'}
         size="large"
         width="300"
       />

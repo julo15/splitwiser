@@ -11,14 +11,14 @@ const SyncStatusBar: React.FC = () => {
 
   return (
     <div
-      className={`fixed bottom-0 left-0 right-0 p-2 text-sm text-center z-40 ${
-        !isOnline
-          ? 'bg-yellow-500 text-yellow-900'
-          : syncStatus === 'error' || conflicts.length > 0
-          ? 'bg-red-500 text-white'
+      className={`fixed bottom-0 left-0 right-0 p-2 text-[12.5px] text-center z-40 font-sans border-t border-sw-line ${
+        // Offline and "still pending" are states, not failures, so they take the
+        // neutral raise; only a real error reaches for the negative ramp.
+        syncStatus === 'error' || conflicts.length > 0
+          ? 'bg-sw-neg-soft text-sw-neg'
           : syncStatus === 'syncing'
-          ? 'bg-blue-500 text-white'
-          : 'bg-teal-500 text-white'
+          ? 'bg-sw-accent-ghost text-sw-accent'
+          : 'bg-sw-raise text-sw-muted'
       }`}
     >
       {!isOnline && (

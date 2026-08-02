@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { api } from './services/api';
+import { Button, Notice } from './components/ui';
 
 interface Group {
     id: number;
@@ -41,39 +42,46 @@ const DeleteGroupConfirm: React.FC<DeleteGroupConfirmProps> = ({ isOpen, onClose
     };
 
     return (
-        <div className="fixed inset-0 bg-gray-600 dark:bg-gray-900/75 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-xl dark:shadow-gray-900/50 w-96">
-                <h2 className="text-xl font-bold mb-4 text-red-600 dark:text-red-400">Delete Group</h2>
+        <div
+            className="fixed inset-0 bg-black/55 overflow-y-auto h-full w-full flex items-center justify-center z-50 p-4 font-sans"
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+            }}
+        >
+            <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-label="Delete group"
+                className="bg-sw-surface text-sw-text p-5 rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)] w-full max-w-sm"
+            >
+                <h2 className="sw-heading text-[17px] mb-4">Delete group</h2>
 
-                <p className="text-gray-700 dark:text-gray-300 mb-4">
-                    Are you sure you want to delete <strong>{group.name}</strong>?
+                <p className="text-sm text-sw-text mb-3">
+                    Are you sure you want to delete <strong className="font-medium">{group.name}</strong>?
                 </p>
 
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                <p className="text-[12.5px] text-sw-dim mb-4">
                     This action cannot be undone. Existing expenses will be preserved but will no longer be associated with this group.
                 </p>
 
                 {error && (
-                    <p className="mb-4 text-sm text-red-500 dark:text-red-400">{error}</p>
+                    <Notice tone="error" className="mb-4">
+                        {error}
+                    </Notice>
                 )}
 
-                <div className="flex justify-end space-x-3">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                        disabled={isDeleting}
-                    >
+                <div className="flex justify-end gap-2">
+                    <Button variant="ghost" onClick={onClose} disabled={isDeleting}>
                         Cancel
-                    </button>
-                    <button
-                        type="button"
+                    </Button>
+                    <Button
+                        variant="secondary"
                         onClick={handleDelete}
-                        className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
                         disabled={isDeleting}
+                        className="text-sw-neg border-sw-neg"
                     >
-                        {isDeleting ? 'Deleting...' : 'Delete'}
-                    </button>
+                        {isDeleting ? 'Deleting…' : 'Delete'}
+                    </Button>
                 </div>
             </div>
         </div>

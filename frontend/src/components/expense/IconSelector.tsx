@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { X } from '@phosphor-icons/react';
+import { Button } from '../ui';
 
 interface IconSelectorProps {
     selectedIcon: string | null;
@@ -54,6 +56,22 @@ const ICON_CATEGORIES: IconCategory[] = [
     }
 ];
 
+/**
+ * The icon swatch: a 48px rounded square, ringed in the hairline colour and
+ * switching to an accent ring plus ghost fill when it is the chosen one. Used
+ * for the trigger, the "none" option, and every emoji in the grid, so the
+ * selected state reads the same everywhere.
+ */
+const SWATCH_BASE =
+    'w-12 h-12 rounded-sw-row flex items-center justify-center min-h-[44px] flex-shrink-0 cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2';
+
+const swatchClass = (selected: boolean) =>
+    `${SWATCH_BASE} ${
+        selected
+            ? 'bg-sw-accent-ghost shadow-[0_0_0_1px_var(--sw-accent)]'
+            : 'bg-sw-sunk shadow-[0_0_0_1px_var(--sw-line)] hover:bg-sw-raise'
+    }`;
+
 const IconSelector: React.FC<IconSelectorProps> = ({ selectedIcon, onIconSelect }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [customEmoji, setCustomEmoji] = useState('');
@@ -69,65 +87,67 @@ const IconSelector: React.FC<IconSelectorProps> = ({ selectedIcon, onIconSelect 
             <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
-                className="w-12 h-12 rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 flex items-center justify-center text-2xl transition-colors min-h-[44px] flex-shrink-0"
+                className={`${swatchClass(false)} text-2xl`}
                 title="Select icon"
                 aria-label="Select icon"
             >
-                {selectedIcon || <span className="text-gray-400 dark:text-gray-500 text-xl">+</span>}
+                {selectedIcon || <span className="text-sw-dim text-xl">+</span>}
             </button>
 
             {/* Modal */}
             {isModalOpen && (
                 <div
-                    className="fixed inset-0 bg-gray-600 dark:bg-gray-900/75 bg-opacity-50 flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 bg-black/55 flex items-center justify-center z-50 p-4 font-sans"
                     onClick={() => setIsModalOpen(false)}
                 >
                     <div
-                        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl dark:shadow-gray-900/50 max-w-lg w-full max-h-[80vh] overflow-y-auto"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Select an icon"
+                        className="bg-sw-surface text-sw-text rounded-sw-card-lg shadow-[0_0_0_1px_var(--sw-line)] max-w-lg w-full max-h-[80vh] overflow-y-auto"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center">
-                            <h3 className="text-lg font-semibold dark:text-gray-100">Select an Icon</h3>
+                        <div className="sticky top-0 bg-sw-surface border-b border-sw-line p-4 flex justify-between items-center">
+                            <h3 className="sw-heading text-[17px]">Select an icon</h3>
                             <button
                                 type="button"
                                 onClick={() => setIsModalOpen(false)}
                                 aria-label="Close icon selector"
-                                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-2xl leading-none"
+                                className="text-sw-dim hover:text-sw-text p-2 -mr-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 rounded-lg"
                             >
-                                ×
+                                <X size={20} />
                             </button>
                         </div>
 
                         <div className="p-4">
                             {/* Quick Select Options */}
-                            <div className="mb-4">
-                                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Options</h4>
+                            <div className="mb-5">
+                                <h4 className="text-[11px] uppercase tracking-[0.09em] text-sw-dim mb-2">
+                                    Options
+                                </h4>
                                 <div className="flex items-center gap-4">
                                     {/* None Option */}
-                                    {/* None Option */}
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">None</label>
+                                        <span className="text-[11.5px] text-sw-muted">None</span>
                                         <button
                                             type="button"
                                             onClick={() => handleIconClick(null)}
-                                            className={`w-12 h-12 rounded-lg border-2 flex items-center justify-center min-h-[44px] ${selectedIcon === null
-                                                ? 'border-teal-500 dark:border-teal-600 bg-teal-50 dark:bg-teal-900/30'
-                                                : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500'
-                                                }`}
+                                            className={swatchClass(selectedIcon === null)}
                                             title="No icon"
                                         >
-                                            <span className="text-gray-400 dark:text-gray-500 text-xl">—</span>
+                                            <span className="text-sw-dim text-xl">—</span>
                                         </button>
                                     </div>
 
-                                    <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+                                    <div className="h-8 w-px bg-sw-line mx-2"></div>
 
                                     {/* Custom Input */}
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">Custom</label>
+                                        <span className="text-[11.5px] text-sw-muted">Custom</span>
                                         <div className="flex gap-2 items-center">
                                             <input
                                                 type="text"
+                                                aria-label="Custom emoji"
                                                 value={customEmoji}
                                                 onChange={(e) => {
                                                     const val = e.target.value;
@@ -139,16 +159,16 @@ const IconSelector: React.FC<IconSelectorProps> = ({ selectedIcon, onIconSelect 
                                                     }
                                                 }}
                                                 placeholder="?"
-                                                className="w-12 h-12 text-center bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-xl text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                                className="w-12 h-12 text-center text-xl bg-sw-sunk text-sw-text border border-sw-line rounded-sw-row placeholder:text-sw-dim focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
                                             />
-                                            <button
-                                                type="button"
+                                            <Button
+                                                variant="primary"
                                                 onClick={() => customEmoji && handleIconClick(customEmoji)}
                                                 disabled={!customEmoji}
-                                                className="px-4 h-12 bg-teal-500 hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                                                className="h-12 px-4"
                                             >
                                                 Use
-                                            </button>
+                                            </Button>
                                         </div>
                                     </div>
                                 </div>
@@ -157,7 +177,7 @@ const IconSelector: React.FC<IconSelectorProps> = ({ selectedIcon, onIconSelect 
                             {/* Icon Categories */}
                             {ICON_CATEGORIES.map((category) => (
                                 <div key={category.name} className="mb-4">
-                                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                    <h4 className="text-[11px] uppercase tracking-[0.09em] text-sw-dim mb-2">
                                         {category.name}
                                     </h4>
                                     <div className="flex flex-wrap gap-2">
@@ -167,10 +187,7 @@ const IconSelector: React.FC<IconSelectorProps> = ({ selectedIcon, onIconSelect 
                                                 type="button"
                                                 onClick={() => handleIconClick(icon)}
                                                 aria-label={`Select ${icon}`}
-                                                className={`w-12 h-12 rounded-lg border-2 flex items-center justify-center text-2xl min-h-[44px] transition-colors ${selectedIcon === icon
-                                                    ? 'border-teal-500 dark:border-teal-600 bg-teal-50 dark:bg-teal-900/30'
-                                                    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500'
-                                                    }`}
+                                                className={`${swatchClass(selectedIcon === icon)} text-2xl`}
                                                 title={icon}
                                             >
                                                 {icon}
