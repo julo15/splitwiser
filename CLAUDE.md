@@ -12,7 +12,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 
 **Main Application:**
 - `backend/main.py` - FastAPI app initialization and router registration
-- `backend/models.py` - SQLAlchemy models: User, Group, GroupMember, Friendship, Expense, ExpenseSplit, GuestMember, RefreshToken, ExpenseItem, ExpenseItemAssignment
+- `backend/models.py` - SQLAlchemy models: User, Group, GroupMember, Friendship, Expense, ExpenseSplit, GuestMember, RefreshToken, ExpenseItem, ExpenseItemAssignment, Tab, TabItem, TabParticipant, TabItemClaim
 - `backend/schemas.py` - Pydantic schemas for request/response validation
 - `backend/auth.py` - JWT token creation and password hashing
 - `backend/database.py` - SQLite database configuration
@@ -27,6 +27,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `backend/routers/friends.py` - Friend management, friend request emails
 - `backend/routers/ocr.py` - LLM-based receipt scanning endpoint
 - `backend/routers/summary.py` - Summary endpoint
+- `backend/routers/tabs.py` - Tabs: owner surface plus the public claim surface
 
 **Utilities:**
 - `backend/utils/currency.py` - Exchange rate fetching (Frankfurter API), caching
@@ -36,6 +37,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `backend/utils/email.py` - Brevo API email service for transactional emails
 - `backend/utils/summary.py` - Consumption aggregation primitive
 - `backend/utils/summary_cache.py` - Bounded in-memory TTL cache for public summary
+- `backend/utils/tabs.py` - Tab share computation (orphan spreading, proportional tax/tip)
 
 **Receipt Scanning:**
 - `backend/ocr/llm_service.py` - LLM vision-based receipt parsing (image or PDF) with structured output
@@ -59,9 +61,10 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `frontend/src/services/offlineApi.ts` - Offline API wrapper using IndexedDB
 - `frontend/src/services/syncManager.ts` - Background sync manager for PWA
 - `frontend/src/db/schema.ts` - IndexedDB schema for offline storage
-- `frontend/src/types/` - TypeScript definitions (group.ts, expense.ts, balance.ts, friend.ts, summary.ts)
+- `frontend/src/types/` - TypeScript definitions (group.ts, expense.ts, balance.ts, friend.ts, summary.ts, tab.ts)
 - `frontend/src/utils/formatters.ts` - Money, date, and name formatting
 - `frontend/src/utils/expenseCalculations.ts` - Frontend split calculations
+- `frontend/src/utils/tabShares.ts` - Live preview of tab shares; TS port of `backend/utils/tabs.py`
 
 **Feature Components:**
 - `frontend/src/ReceiptScanner.tsx` - LLM-based receipt scanning (upload → AI scan → review items)
@@ -72,6 +75,9 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `frontend/src/components/summary/SummarySection.tsx` - Collapsible summary section
 - `frontend/src/components/summary/MemberConsumptionTable.tsx` - Per-member rows
 - `frontend/src/components/summary/SpendingTrendChart.tsx` - Stacked bar chart (visx)
+- `frontend/src/routes/TabBoardPage.tsx` - Host's view of a live tab (mobile list / desktop two-pane)
+- `frontend/src/routes/TabClaimPage.tsx` - `/t/:shareToken`; no auth, no shell
+- `frontend/src/components/tab/` - Receipt paper, item × person matrix, QR, progress
 
 **PWA Support:**
 - `frontend/public/manifest.json` - PWA manifest for installable app
@@ -86,6 +92,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - Registered members can also be managed for balance aggregation
 - Refresh tokens stored hashed (SHA-256) in database with server-side revocation
 - Itemized expenses use proportional tax/tip distribution
+- Tabs are share-link bills with no group: high-entropy expiring write tokens, anonymous claimers held by their own claim token, unclaimed lines spread across everyone at close
 - Receipt uploads (images and PDFs) stored in `data/receipts/` directory (configurable via `DATA_DIR` env var); PDFs are rasterized per-page for the LLM but the original file is preserved
 
 ## Development Commands
@@ -170,6 +177,22 @@ ALTER TABLE table_name ADD COLUMN column_name TYPE DEFAULT 'value';
 - `GET /groups/{group_id}/summary` - Per-member consumption totals, group total, time-bucketed series (authenticated members)
 - `GET /groups/public/{share_link_id}/summary` - Narrower version for public share-link viewers (group total + single-series chart only)
 
+### Tabs
+A tab is a one-off bill people claim their own items from via a link — no group, nobody to invite. See `docs/TABS.md`.
+
+Owner (authenticated):
+- `POST /tabs`, `GET /tabs`, `GET /tabs/{tab_id}` - Open, list, read
+- `POST /tabs/{tab_id}/items`, `DELETE /tabs/{tab_id}/items/{item_id}` - Lines the scan missed; deleting drops the line's claims
+- `POST /tabs/{tab_id}/items/{item_id}/claim` - Claim as yourself (any signed-in participant)
+- `POST /tabs/{tab_id}/items/{item_id}/claim/{participant_id}` - Set anyone's claim (owner only)
+- `POST /tabs/{tab_id}/revoke` - Kill the link without closing
+- `POST /tabs/{tab_id}/close` - Resolve into one direct expense
+
+Public (no auth, rate-limited):
+- `GET /public/tabs/{share_token}` - Read the tab
+- `POST /public/tabs/{share_token}/join` - Join with a name; returns a claim token
+- `POST /public/tabs/{share_token}/items/{item_id}/claim` - Claim or release, authenticated by `claim_token`
+
 ## Key Database Fields
 
 - Group: `default_currency`, `icon`, `share_link_id`, `is_public`
@@ -180,6 +203,10 @@ ALTER TABLE table_name ADD COLUMN column_name TYPE DEFAULT 'value';
 - RefreshToken: `token_hash`, `expires_at`, `revoked`
 - ExpenseItem: `description`, `price`, `is_tax_tip`
 - ExpenseItemAssignment: `user_id`, `is_guest`
+- Tab: `share_token`, `token_expires_at`, `revoked`, `status`, `tax`, `tip`, `total`, `expense_id`
+- TabItem: `description`, `price`, `added_manually`
+- TabParticipant: `display_name`, `user_id` (null when anonymous), `claim_token`
+- TabItemClaim: `item_id`, `participant_id` (unique together)
 
 ## Detailed Documentation
 
@@ -190,5 +217,6 @@ For more detailed information, see the `docs/` directory:
 - `docs/LLM_RECEIPT_SCANNING.md` - LLM-based receipt scanning implementation plan
 - `docs/USER_MANAGEMENT.md` - Guest/member management, public links
 - `docs/ITEMIZED_EXPENSES.md` - Itemized split algorithm
+- `docs/TABS.md` - Tabs: share-link bills, claim tokens, share computation
 - `docs/PWA.md` - Progressive Web App, offline support
 - `docs/DATABASE.md` - Schema, performance, security
