@@ -104,7 +104,10 @@ const TabBoardPage: React.FC = () => {
     const showPeople = view === 'people' && (tab?.participants.length ?? 0) > 0;
     const spokenFor = claimedTotal(shareItems);
     const outstanding = unclaimedTotal(shareItems);
-    const billTotal = spokenFor + outstanding + (tab?.tax ?? 0) + (tab?.tip ?? 0);
+    // The counter measures the picking, and tax and tip are not pickable — they
+    // are spread over whoever ends up on the lines. Counting them in the
+    // denominator would leave a fully claimed tab short of 100%.
+    const itemsTotal = spokenFor + outstanding;
 
     // What each person would owe if the tab closed right now. The server runs
     // the same computation at close, so this is a preview and not a guess.
@@ -331,7 +334,7 @@ const TabBoardPage: React.FC = () => {
                     shares={shares}
                     claimed={spokenFor}
                     unclaimed={outstanding}
-                    billTotal={billTotal}
+                    itemsTotal={itemsTotal}
                     error={error}
                     onToggleClaim={setClaim}
                     onAddItem={addItem}
@@ -479,11 +482,11 @@ const TabBoardPage: React.FC = () => {
                         <span className="text-[13px] text-sw-muted">
                             of{' '}
                             <Money
-                                amount={billTotal}
+                                amount={itemsTotal}
                                 currency={tab.currency}
                                 tone="muted"
                             />{' '}
-                            spoken for
+                            in items spoken for
                         </span>
                     </div>
 
@@ -491,7 +494,7 @@ const TabBoardPage: React.FC = () => {
                         <div
                             className="h-full rounded bg-sw-accent transition-[width] duration-300"
                             style={{
-                                width: `${billTotal > 0 ? Math.round((spokenFor / billTotal) * 100) : 0}%`,
+                                width: `${itemsTotal > 0 ? Math.round((spokenFor / itemsTotal) * 100) : 0}%`,
                             }}
                         />
                     </div>
