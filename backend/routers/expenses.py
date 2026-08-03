@@ -515,6 +515,24 @@ def get_expense(
             for eg in expense_guests
         ]
 
+    # A closed tab resolves into exactly one expense. Surfacing the tab here is
+    # what lets the detail view offer a way back to the item-by-item board;
+    # without it a tab's expense is a dead end, since closed tabs are not
+    # listed anywhere.
+    #
+    # Only for the tab's owner. GET /tabs/{id} is owner-only and answers a
+    # stranger with 404 precisely so it never confirms a tab exists, so
+    # handing anyone else the id would both leak that and offer a link that
+    # dead-ends. Everyone else sees the expense on its own terms.
+    tab = (
+        db.query(models.Tab)
+        .filter(
+            models.Tab.expense_id == expense_id,
+            models.Tab.created_by_id == current_user.id,
+        )
+        .first()
+    )
+
     return schemas.ExpenseWithSplits(
         id=expense.id,
         description=expense.description,
@@ -535,7 +553,8 @@ def get_expense(
         icon=expense.icon,
         receipt_image_path=expense.receipt_image_path,
         notes=expense.notes,
-        is_settlement=expense.is_settlement
+        is_settlement=expense.is_settlement,
+        tab_id=tab.id if tab else None
     )
 
 

@@ -411,6 +411,81 @@ class TestClosing:
         assert response.status_code == 404
 
 
+class TestClosedTabIsReachableFromItsExpense:
+    """
+    A closed tab is listed nowhere, so its expense is the only way back to the
+    item-by-item board. The expense carries the tab id to make that trip.
+    """
+
+    def test_the_expense_points_back_at_the_tab(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        client.post(
+            f"/public/tabs/{tab['share_token']}/join",
+            json={"display_name": "Maya"},
+        )
+
+        closed = client.post(
+            f"/tabs/{tab['id']}/close", json={}, headers=headers
+        ).json()
+
+        expense = client.get(
+            f"/expenses/{closed['expense_id']}", headers=headers
+        ).json()
+        assert expense["tab_id"] == tab["id"]
+
+    def test_an_ordinary_expense_has_no_tab(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        me = client.get("/users/me", headers=headers).json()["id"]
+        created = client.post(
+            "/expenses/",
+            json={
+                "description": "Coffee",
+                "amount": 500,
+                "currency": "USD",
+                "date": str(datetime.utcnow().date()),
+                "payer_id": me,
+                "group_id": None,
+                "split_type": "EQUAL",
+                "splits": [{"user_id": me, "amount_owed": 500, "is_guest": False}],
+            },
+            headers=headers,
+        )
+        assert created.status_code == 200, created.text
+
+        detail = client.get(
+            f"/expenses/{created.json()['id']}", headers=headers
+        ).json()
+        assert detail["tab_id"] is None
+
+    def test_the_tab_stays_shut_to_everyone_else(self, client):
+        """
+        GET /tabs/{id} answers a non-owner with 404 so it never confirms a tab
+        exists. The id travels on the expense only for the owner, so nobody
+        else is handed a link they cannot follow.
+        """
+        owner = register(client, "vince@example.com", "Vince Woo")
+        mallory = register(client, "mallory@example.com", "Mallory")
+        tab = make_tab(client, owner)
+        client.post(
+            f"/public/tabs/{tab['share_token']}/join",
+            json={"display_name": "Maya"},
+        )
+
+        closed = client.post(
+            f"/tabs/{tab['id']}/close", json={}, headers=owner
+        ).json()
+
+        # Not her expense, and not her tab.
+        assert (
+            client.get(
+                f"/expenses/{closed['expense_id']}", headers=mallory
+            ).status_code
+            == 403
+        )
+        assert client.get(f"/tabs/{tab['id']}", headers=mallory).status_code == 404
+
+
 class TestClaimUniqueness:
     def test_the_schema_refuses_a_duplicate_claim(self, client, db_session):
         """

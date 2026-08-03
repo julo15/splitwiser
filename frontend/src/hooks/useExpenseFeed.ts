@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { expensesApi } from '../services/api';
 
 export interface FeedExpense {
@@ -26,9 +26,19 @@ export interface FeedExpense {
 export function useExpenseFeed(): {
     expenses: FeedExpense[];
     loading: boolean;
+    /** Re-fetch, after an expense is edited or deleted from the feed. */
+    reload: () => void;
 } {
     const [expenses, setExpenses] = useState<FeedExpense[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const reload = useCallback(() => {
+        expensesApi
+            .getAll()
+            .then((data: FeedExpense[]) => setExpenses(data))
+            .catch((error) => console.error('Failed to fetch expenses:', error))
+            .finally(() => setLoading(false));
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -57,5 +67,5 @@ export function useExpenseFeed(): {
         [expenses]
     );
 
-    return { expenses: sorted, loading };
+    return { expenses: sorted, loading, reload };
 }

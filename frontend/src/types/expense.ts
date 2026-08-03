@@ -86,6 +86,11 @@ export interface ExpenseWithSplits {
     exchange_rate_target_currency?: string | null;  // Currency that exchange_rate is relative to
     has_unknown_assignments?: boolean;  // True if expense has items assigned to Unknown
     is_settlement?: boolean;  // True if this is a payment/settlement
+    /**
+     * The tab this expense came from, when it is what a closed tab resolved
+     * into. Only sent to the tab's owner — nobody else can open the board.
+     */
+    tab_id?: number | null;
 }
 
 export type SplitType = 'EQUAL' | 'EXACT' | 'PERCENT' | 'SHARES' | 'ITEMIZED';
