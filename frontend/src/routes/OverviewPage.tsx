@@ -25,7 +25,8 @@ import { useOpenExpense } from '../hooks/useOpenExpense';
 import { useOpenTabs } from '../hooks/useOpenTabs';
 import { useSettlement } from '../hooks/useSettlement';
 import { netForGroup } from '../utils/groupBalances';
-import { settlementTotal } from '../utils/settlement';
+import { partyName, settlementTotal } from '../utils/settlement';
+import type { Counterparty } from '../utils/settlement';
 
 /** "Friday evening" — the greeting line above the mobile home header. */
 function timeOfDayGreeting(now = new Date()): string {
@@ -65,12 +66,18 @@ const OverviewPage: React.FC = () => {
     const openExpense = useOpenExpense();
     const { openTabs } = useOpenTabs();
 
-    const { counterparties } = useSettlement();
+    const { counterparties, directory } = useSettlement();
 
-    const friendName = useMemo(() => {
+    /**
+     * Names come from the directory the debt simplification returns, which
+     * covers everyone in your groups — guests included. The friends list is
+     * only a fallback.
+     */
+    const nameFor = useMemo(() => {
         const names = new Map(friends.map((f) => [f.id, f.full_name]));
-        return (id: number) => names.get(id);
-    }, [friends]);
+        return (counterparty: Counterparty) =>
+            partyName(directory, counterparty, names);
+    }, [friends, directory]);
 
     const owedBy = useMemo(
         () => counterparties.filter((c) => c.amount > 0),
@@ -204,9 +211,7 @@ const OverviewPage: React.FC = () => {
             <div className="flex flex-col gap-2">
                 {counterparties.map((counterparty) => {
                     const theyPayYou = counterparty.amount > 0;
-                    const name = counterparty.isGuest
-                        ? `Guest ${counterparty.userId}`
-                        : (friendName(counterparty.userId) ?? `Person ${counterparty.userId}`);
+                    const name = nameFor(counterparty);
 
                     return (
                         <div
