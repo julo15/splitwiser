@@ -15,9 +15,9 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { useSettlement } from '../hooks/useSettlement';
 import { api } from '../services/api';
 import { formatDateForInput } from '../utils/formatters';
-import { participantKey, settlementTotal } from '../utils/settlement';
+import { participantKey, partyName, settlementTotal } from '../utils/settlement';
 import { buildVenmoLinks, openVenmo, VENMO_CURRENCY } from '../utils/venmo';
-import type { SuggestedPayment } from '../utils/settlement';
+import type { SettlementParty, SuggestedPayment } from '../utils/settlement';
 import type { VenmoLinks } from '../utils/venmo';
 
 /**
@@ -46,14 +46,7 @@ const SettleUpPage: React.FC = () => {
      */
     const nameFor = useMemo(() => {
         const friendNames = new Map(friends.map((f) => [f.id, f.full_name]));
-        return (payment: SuggestedPayment) => {
-            const known = directory.get(
-                participantKey(payment.groupId, payment.userId, payment.isGuest)
-            );
-            if (known) return known.display_name;
-            if (payment.isGuest) return 'Guest';
-            return friendNames.get(payment.userId) ?? `Person ${payment.userId}`;
-        };
+        return (party: SettlementParty) => partyName(directory, party, friendNames);
     }, [friends, directory]);
 
     /**
@@ -351,10 +344,7 @@ const SettleUpPage: React.FC = () => {
                             Where you stand
                         </div>
                         {counterparties.map((counterparty) => {
-                            const name = counterparty.isGuest
-                                ? 'Guest'
-                                : (friends.find((f) => f.id === counterparty.userId)
-                                      ?.full_name ?? `Person ${counterparty.userId}`);
+                            const name = nameFor(counterparty);
                             const owesYou = counterparty.amount > 0;
                             return (
                                 <button

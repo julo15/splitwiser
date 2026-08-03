@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+    participantDirectory,
+    partyName,
     paymentsForUser,
     settlementForUser,
     settlementTotal,
@@ -151,6 +153,94 @@ describe('settlementTotal', () => {
 
     it('returns null for an empty set', () => {
         expect(settlementTotal([])).toBeNull();
+    });
+});
+
+describe('partyName', () => {
+    const participant = (
+        userId: number,
+        isGuest: boolean,
+        displayName: string
+    ) => ({
+        user_id: userId,
+        is_guest: isGuest,
+        display_name: displayName,
+        venmo_username: null,
+    });
+
+    const directory = participantDirectory([
+        {
+            groupId: 7,
+            groupName: 'Tahoe',
+            transactions: [],
+            participants: [
+                participant(3, true, 'Maya (guest)'),
+                participant(2, false, 'Sam Okafor'),
+            ],
+        },
+        {
+            groupId: 9,
+            groupName: 'Lisbon',
+            transactions: [],
+            participants: [participant(3, true, 'Theo (guest)')],
+        },
+    ]);
+
+    const noFriends = new Map<number, string>();
+
+    it('names a guest from the directory rather than their id', () => {
+        expect(
+            partyName(directory, { userId: 3, isGuest: true, groupId: 7 }, noFriends)
+        ).toBe('Maya (guest)');
+    });
+
+    it('keeps guests scoped to their group, since guest ids repeat', () => {
+        expect(
+            partyName(directory, { userId: 3, isGuest: true, groupId: 9 }, noFriends)
+        ).toBe('Theo (guest)');
+    });
+
+    it('names a group member you have not befriended', () => {
+        expect(
+            partyName(directory, { userId: 2, isGuest: false, groupId: 7 }, noFriends)
+        ).toBe('Sam Okafor');
+    });
+
+    it('resolves a registered person merged across groups, which drops groupId', () => {
+        expect(partyName(directory, { userId: 2, isGuest: false }, noFriends)).toBe(
+            'Sam Okafor'
+        );
+    });
+
+    it('falls back to the friends list when the directory is missing', () => {
+        const empty = participantDirectory([]);
+        expect(
+            partyName(
+                empty,
+                { userId: 2, isGuest: false, groupId: 7 },
+                new Map([[2, 'Sam Okafor']])
+            )
+        ).toBe('Sam Okafor');
+    });
+
+    it('falls back to "Guest" rather than an id for an unknown guest', () => {
+        expect(
+            partyName(
+                participantDirectory([]),
+                { userId: 3, isGuest: true, groupId: 7 },
+                noFriends
+            )
+        ).toBe('Guest');
+    });
+
+    it('falls back to the id only for an unknown registered person', () => {
+        expect(
+            partyName(
+                participantDirectory([]),
+                { userId: 42, isGuest: false, groupId: 7 },
+                noFriends
+            )
+        ).toBe('Person 42');
     });
 });
 

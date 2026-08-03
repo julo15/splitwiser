@@ -69,6 +69,43 @@ export function participantDirectory(
     return directory;
 }
 
+/** Anyone the settlement screens name: a counterparty or a single payment. */
+export interface SettlementParty {
+    userId: number;
+    isGuest: boolean;
+    /** Undefined once a counterparty spans several groups. */
+    groupId?: number;
+}
+
+/**
+ * What to call someone in a settlement figure.
+ *
+ * The directory answers first, because it covers everyone in your groups —
+ * guests, and members you have never befriended. Friends are the fallback for
+ * a response cached before the directory existed; the bare id is the last
+ * resort, and should not be reachable in practice.
+ *
+ * Guests are only resolvable inside their group, so a guest with no `groupId`
+ * cannot be looked up. That combination does not arise: guest ids are
+ * group-scoped, so guest counterparties never merge across groups and always
+ * keep theirs. Registered people do merge, and their key ignores the group.
+ */
+export function partyName(
+    directory: Map<string, SettlementParticipant>,
+    party: SettlementParty,
+    friendNames: Map<number, string>
+): string {
+    const known =
+        party.isGuest && party.groupId === undefined
+            ? undefined
+            : directory.get(
+                  participantKey(party.groupId ?? 0, party.userId, party.isGuest)
+              );
+    if (known) return known.display_name;
+    if (party.isGuest) return 'Guest';
+    return friendNames.get(party.userId) ?? `Person ${party.userId}`;
+}
+
 export interface Counterparty {
     key: string;
     userId: number;

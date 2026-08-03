@@ -7,7 +7,7 @@ import PageHeader from './PageHeader';
 import { useAppData } from '../contexts/AppDataContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useSettlement } from '../hooks/useSettlement';
-import { settlementTotal } from '../utils/settlement';
+import { partyName, settlementTotal } from '../utils/settlement';
 import type { Counterparty } from '../utils/settlement';
 
 interface Person {
@@ -99,7 +99,7 @@ const PeoplePage: React.FC = () => {
     const navigate = useNavigate();
     const { friends, refreshFriends } = useAppData();
     const [addOpen, setAddOpen] = useState(false);
-    const { counterparties, loading } = useSettlement();
+    const { counterparties, directory, loading } = useSettlement();
 
     const { owed, owing, square } = useMemo(() => {
         const friendNames = new Map(friends.map((f) => [f.id, f.full_name]));
@@ -111,10 +111,7 @@ const PeoplePage: React.FC = () => {
                 key: counterparty.key,
                 userId: counterparty.userId,
                 isGuest: counterparty.isGuest,
-                name:
-                    (!counterparty.isGuest
-                        ? friendNames.get(counterparty.userId)
-                        : undefined) ?? `Person ${counterparty.userId}`,
+                name: partyName(directory, counterparty, friendNames),
                 groups: counterparty.groups,
                 groupId: counterparty.groupId,
                 balance: counterparty,
@@ -147,7 +144,7 @@ const PeoplePage: React.FC = () => {
                 .sort(byMagnitude),
             square: settled.sort((a, b) => a.name.localeCompare(b.name)),
         };
-    }, [counterparties, friends]);
+    }, [counterparties, directory, friends]);
 
     const openPerson = (person: Person) => {
         // Guests live inside their group; registered people have their own page.
