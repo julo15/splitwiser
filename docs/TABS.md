@@ -215,6 +215,11 @@ place.
 - `POST /tabs/{tab_id}/items` - add a line the scan missed
 - `DELETE /tabs/{tab_id}/items/{item_id}` - remove a line, dropping its claims.
   The UI only offers this for hand-added lines.
+- `POST /tabs/{tab_id}/participants` - seat somebody the owner is claiming on
+  behalf of. A guest seat: joining otherwise needs the link, which is no use to
+  the person at the table with a flat phone. Grants nothing the owner did not
+  already have, since they can already tick any seat. Same name rules as
+  joining, and a `409` on a collision either way round.
 - `POST /tabs/{tab_id}/items/{item_id}/claim` - claim as yourself. The host is a
   participant like anyone else, and their claim token is never handed out, so
   identity comes from the session. Open to any signed-in participant.
@@ -243,6 +248,8 @@ place.
 - `TabBoardPage.tsx` - the host's view. Picks a posture with `useIsDesktop`.
 - `TabClaimPage.tsx` - `/t/:shareToken`. No auth, no shell: the token is the
   only credential and most people opening it have no account.
+- `TabPassPage.tsx` - `/tabs/:tabId/pass`. Signed in, but no shell — see
+  *Passing the phone*.
 - `TabClosePage.tsx` - confirm who paid, see the final shares.
 
 **Components** (`src/components/tab/`)
@@ -272,6 +279,59 @@ The per-person footer totals are what closing *right now* would record, so they
 include each person's share of the unclaimed lines; the outstanding amount is
 called out separately. The breakdown sits below the grid, so the totals and
 their working are on one screen.
+
+## Passing the phone
+
+For the table where the others have no phone on them. The host's device goes
+round and each person claims their own lines on it — `/tabs/:tabId/pass`.
+
+It is **the claim screen with a seat picker on top**, not the board with a
+person dropdown. The board is the host's surface: share link, close button, and
+the whole signed-in app in a tab bar underneath. So the route is signed in like
+any owner surface but sits *outside* `ShellRoute`, next to the public claim
+page. That placement is the design, not a routing detail.
+
+It is not a kiosk and does not pretend to be — a browser always has a back
+gesture. What the shell-less route removes is every path that *invites* you
+into the account while somebody else is holding the phone.
+
+**The loop.** Picker → one person's turn → *Done — pass it on* → picker.
+
+- The picker leads with the **orphan count**, not a roster: an unclaimed line
+  is what gets spread across the whole table at close, so that is the number
+  that says whether you are finished. Mixed tables are the normal case, so
+  whoever already used the link shows their count and gets skipped.
+- A turn opens with the name in a tinted band. The one failure mode here is
+  ticking items onto the wrong person, so identity is something you cannot
+  miss rather than a control you have to read. The host takes a turn like
+  anyone else and is addressed as "you".
+- `+ Someone else` seats a name inline and drops straight into their list.
+  Half the table never opened the link, so it cannot be a detour.
+
+**Idle returns to the picker, never out.** After `IDLE_MS` (45s) a quiet turn
+falls back to "who's got the phone?". That is the real mis-attribution risk:
+the phone goes face-up when Maya finishes and the next person picks it up.
+
+**Polling stops mid-turn.** The picker refreshes every 5s because somebody may
+still be claiming from their own phone; a poll landing between taps would move
+the list under the person using it.
+
+**Getting in and out.** Sending the link, showing a QR and passing the phone
+are three mechanisms for one question — how do everyone's picks get in? — so
+they share a sheet behind *Get picks*. It costs one tap on the commonest path.
+The exit is deliberately **not** called "Done": that is what ends a turn, one
+screen over, and somebody finishing their items must not drop the host back
+into their own account by reflex. It confirms through `AlertDialog` with
+`destructive={false}` — nothing is lost by stopping, and a red warning would
+say otherwise.
+
+Nothing is ever mid-edit: claims save on every tap, as on the claim link, so
+the phone can come back at any moment with nothing pending.
+
+**Not built.** Handing a seat over. A hand-seated person's claim token is never
+returned, so they cannot later claim from their own phone — acceptable while
+the premise is that they have not got one, and a per-seat handoff link is a
+separate feature.
 
 ### Where the breakdown appears
 

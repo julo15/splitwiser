@@ -21,6 +21,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Tab detail in the expense modal**: An expense a tab closed into shows that
   breakdown inline instead of only offering a link to the tab board.
 
+- **Pass the phone**: For the table where nobody else has a device on them, the
+  host's phone now goes round — a seat picker, then one person's own claim list
+  at a time, with anyone who never opened the link seated by name on the spot.
+  Reached from *Get picks* on the board, alongside sending the link and the QR.
+
 ### Fixed
 
 - **Phantom payer on an open tab**: The first guest at the table was labelled as

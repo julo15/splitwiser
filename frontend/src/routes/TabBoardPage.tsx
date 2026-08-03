@@ -3,10 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowLeft,
     Check,
+    DeviceMobile,
     Plus,
     QrCode as QrCodeIcon,
     ShareNetwork,
     Trash,
+    UsersThree,
 } from '@phosphor-icons/react';
 import { Avatar, Button, Card, Money, SegmentedControl, Sheet } from '../components/ui';
 import ClaimerStack from '../components/tab/ClaimerStack';
@@ -49,6 +51,7 @@ const TabBoardPage: React.FC = () => {
     const [newPrice, setNewPrice] = useState('');
     const [copied, setCopied] = useState(false);
     const [qrOpen, setQrOpen] = useState(false);
+    const [collectOpen, setCollectOpen] = useState(false);
     const [view, setView] = useState<'items' | 'people'>('items');
 
     usePageTitle(tab?.name ?? 'Tab');
@@ -225,6 +228,80 @@ const TabBoardPage: React.FC = () => {
      * The link as something to point a phone at. Everyone is at the same table,
      * so a code on the host's screen beats sending four messages.
      */
+    /**
+     * How the others are claiming.
+     *
+     * Sending the link, showing a QR and passing the phone are different
+     * mechanisms for one question — how do everyone's picks get in? — and the
+     * answer depends on who at this table has a device on them. The header has
+     * no room for three peer actions at 390px, so they share a sheet.
+     */
+    const collectSheet = (
+        <Sheet
+            open={collectOpen}
+            onClose={() => setCollectOpen(false)}
+            label="How are they claiming?"
+            title="How are they claiming?"
+            className="lg:max-w-[420px] lg:rounded-b-sw-sheet lg:mb-6"
+        >
+            <div className="flex flex-col gap-2">
+                {shareLink && (
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setCollectOpen(false);
+                                handleShare();
+                            }}
+                            className="flex items-center gap-3 p-3.5 rounded-sw-card bg-sw-surface shadow-[0_0_0_1px_var(--sw-line)] text-left hover:bg-sw-raise focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
+                        >
+                            <ShareNetwork size={18} className="text-sw-muted flex-none" />
+                            <span className="flex-1 min-w-0">
+                                <span className="block text-sm">
+                                    {copied ? 'Copied' : 'Send the link'}
+                                </span>
+                                <span className="block text-[11.5px] text-sw-dim">
+                                    They claim on their own phones
+                                </span>
+                            </span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setCollectOpen(false);
+                                setQrOpen(true);
+                            }}
+                            className="flex items-center gap-3 p-3.5 rounded-sw-card bg-sw-surface shadow-[0_0_0_1px_var(--sw-line)] text-left hover:bg-sw-raise focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
+                        >
+                            <QrCodeIcon size={18} className="text-sw-muted flex-none" />
+                            <span className="flex-1 min-w-0">
+                                <span className="block text-sm">Show a QR</span>
+                                <span className="block text-[11.5px] text-sw-dim">
+                                    Everyone&rsquo;s at the same table
+                                </span>
+                            </span>
+                        </button>
+                    </>
+                )}
+
+                <button
+                    type="button"
+                    onClick={() => navigate(`/tabs/${tab.id}/pass`)}
+                    className="flex items-center gap-3 p-3.5 rounded-sw-card bg-sw-surface shadow-[0_0_0_1px_var(--sw-line)] text-left hover:bg-sw-raise focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2"
+                >
+                    <DeviceMobile size={18} className="text-sw-muted flex-none" />
+                    <span className="flex-1 min-w-0">
+                        <span className="block text-sm">Pass the phone round</span>
+                        <span className="block text-[11.5px] text-sw-dim">
+                            Nobody&rsquo;s got theirs on them
+                        </span>
+                    </span>
+                </button>
+            </div>
+        </Sheet>
+    );
+
     const qrSheet = shareLink && (
         <Sheet
             open={qrOpen}
@@ -262,6 +339,7 @@ const TabBoardPage: React.FC = () => {
                     onShowQr={() => setQrOpen(true)}
                     onClose={() => navigate(`/tabs/${tab.id}/close`)}
                 />
+                {collectSheet}
                 {qrSheet}
             </>
         );
@@ -378,22 +456,13 @@ const TabBoardPage: React.FC = () => {
                     </div>
                 </div>
                 {tab.status === 'open' && (
-                    <div className="ml-auto flex items-center gap-1.5 flex-none">
-                        {shareLink && (
-                            <Button
-                                variant="ghost"
-                                onClick={() => setQrOpen(true)}
-                                aria-label="Show the tab as a QR code"
-                            >
-                                <QrCodeIcon size={17} />
-                            </Button>
-                        )}
+                    <div className="ml-auto flex-none">
                         <Button
                             variant="secondary"
-                            onClick={handleShare}
-                            icon={<ShareNetwork size={15} />}
+                            onClick={() => setCollectOpen(true)}
+                            icon={<UsersThree size={15} />}
                         >
-                            {copied ? 'Copied' : 'Send link'}
+                            Get picks
                         </Button>
                     </div>
                 )}
@@ -608,6 +677,7 @@ const TabBoardPage: React.FC = () => {
                 </div>
             )}
 
+            {collectSheet}
             {qrSheet}
         </>
     );

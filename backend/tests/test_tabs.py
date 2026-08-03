@@ -710,6 +710,143 @@ class TestManualItems:
         assert db_session.query(models.TabItemClaim).count() == 0
 
 
+class TestOwnerSeatsSomebody:
+    """
+    Seating a person from the owner's device — the table where somebody has no
+    phone on them, and the only other way in is the link.
+    """
+
+    def test_the_owner_can_seat_a_guest(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+
+        response = client.post(
+            f"/tabs/{tab['id']}/participants",
+            json={"display_name": "Dani"},
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+        seated = next(
+            p for p in response.json()["participants"] if p["display_name"] == "Dani"
+        )
+        # A guest seat: an account here would be the owner's, who already has one.
+        assert seated["user_id"] is None
+
+    def test_a_seated_guest_can_be_claimed_for_and_closes_into_the_expense(
+        self, client, db_session
+    ):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+
+        seated = client.post(
+            f"/tabs/{tab['id']}/participants",
+            json={"display_name": "Dani"},
+            headers=headers,
+        ).json()
+        dani = next(
+            p for p in seated["participants"] if p["display_name"] == "Dani"
+        )
+
+        item_id = tab["items"][0]["id"]
+        response = client.post(
+            f"/tabs/{tab['id']}/items/{item_id}/claim/{dani['id']}",
+            json={"claimed": True},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        claimed = next(i for i in response.json()["items"] if i["id"] == item_id)
+        assert dani["id"] in claimed["claimed_by"]
+
+        closed = client.post(f"/tabs/{tab['id']}/close", json={}, headers=headers)
+        assert closed.status_code == 200
+        # No account, so they land as a guest line on the expense.
+        guests = (
+            db_session.query(models.ExpenseGuest)
+            .filter(models.ExpenseGuest.expense_id == closed.json()["expense_id"])
+            .all()
+        )
+        assert [g.name for g in guests] == ["Dani"]
+
+    def test_the_name_rules_are_the_link_s_rules(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        client.post(
+            f"/public/tabs/{tab['share_token']}/join", json={"display_name": "Maya"}
+        )
+
+        # Two Mayas are unusable however they arose.
+        response = client.post(
+            f"/tabs/{tab['id']}/participants",
+            json={"display_name": "  maya "},
+            headers=headers,
+        )
+        assert response.status_code == 409
+
+    def test_a_seat_taken_here_blocks_the_same_name_on_the_link(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        client.post(
+            f"/tabs/{tab['id']}/participants",
+            json={"display_name": "Dani"},
+            headers=headers,
+        )
+
+        response = client.post(
+            f"/public/tabs/{tab['share_token']}/join", json={"display_name": "Dani"}
+        )
+        assert response.status_code == 409
+
+    def test_a_blank_name_is_refused(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+
+        response = client.post(
+            f"/tabs/{tab['id']}/participants",
+            json={"display_name": "   "},
+            headers=headers,
+        )
+        assert response.status_code == 400
+
+    def test_a_stranger_cannot_seat_anyone(self, client):
+        owner = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, owner)
+        stranger = register(client, "mallory@example.com", "Mallory")
+
+        response = client.post(
+            f"/tabs/{tab['id']}/participants",
+            json={"display_name": "Mallory"},
+            headers=stranger,
+        )
+        # Same shape as not-found: a stranger learns nothing about this tab.
+        assert response.status_code == 404
+
+    def test_a_closed_tab_cannot_be_joined_by_the_owner_either(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        client.post(
+            f"/public/tabs/{tab['share_token']}/join", json={"display_name": "Maya"}
+        )
+        client.post(f"/tabs/{tab['id']}/close", json={}, headers=headers)
+
+        response = client.post(
+            f"/tabs/{tab['id']}/participants",
+            json={"display_name": "Dani"},
+            headers=headers,
+        )
+        assert response.status_code == 409
+
+    def test_the_claim_token_is_never_handed_out(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+
+        response = client.post(
+            f"/tabs/{tab['id']}/participants",
+            json={"display_name": "Dani"},
+            headers=headers,
+        )
+        assert "claim_token" not in response.text
+
+
 class TestClosing:
     def test_closing_produces_one_direct_expense_that_balances(self, client, db_session):
         headers = register(client, "vince@example.com", "Vince Woo")
