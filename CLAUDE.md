@@ -72,6 +72,8 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `frontend/src/components/expense/ExpenseItemList.tsx` - Itemized expense UI with per-item splits
 - `frontend/src/components/group/GroupPersonSheet.tsx` - Per-person actions in a group: claim a guest, fold a balance into a manager, remove, send a friend request
 - `frontend/src/components/AddPersonSheet.tsx` - Add a friend by email
+- `frontend/src/hooks/useOpenExpense.ts` - Opens the expense detail modal from a feed row, loading group context in the background
+- `frontend/src/components/tab/OpenTabsList.tsx` - Open tabs as re-entry rows; on the home page and Activity
 - `frontend/src/hooks/useItemizedExpense.ts` - Itemized expense state management
 - `frontend/src/components/summary/SummarySection.tsx` - Spending summary (consumption, not balances)
 - `frontend/src/components/summary/MemberConsumptionTable.tsx` - Per-member rows
@@ -244,6 +246,8 @@ ALTER TABLE table_name ADD COLUMN column_name TYPE DEFAULT 'value';
 ### Expenses
 - `POST /expenses`, `GET /expenses`, `GET /expenses/{expense_id}`, `PUT /expenses/{expense_id}`, `DELETE /expenses/{expense_id}` - Expense CRUD
 - Split types: EQUAL, EXACT, PERCENTAGE, SHARES, ITEMIZED
+- The detail response carries `tab_id` when the expense is what a closed tab
+  resolved into, and only for that tab's owner — see `docs/TABS.md`
 
 ### Friends
 - `POST /friends`, `GET /friends` - Friend management

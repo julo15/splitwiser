@@ -156,6 +156,10 @@ class ExpenseWithSplits(Expense):
     expense_guests: list[ExpenseGuestResponse] = []  # For non-group expenses with ad-hoc guests
     has_unknown_assignments: bool = False  # True if expense has items with no assignments (incomplete)
     exchange_rate_target_currency: Optional[str] = None  # Currency that exchange_rate is relative to (e.g., "USD" or group default)
+    # Set when this expense is what a closed tab resolved into, so the client
+    # can offer a way back to the tab's item-by-item board. Derived from
+    # Tab.expense_id rather than stored on the expense.
+    tab_id: Optional[int] = None
 
 class ExpenseUpdate(BaseModel):
     description: str = Field(..., max_length=200)

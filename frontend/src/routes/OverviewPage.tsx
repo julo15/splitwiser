@@ -12,6 +12,8 @@ import {
 } from '../components/ui';
 import PageHeader from './PageHeader';
 import ExpenseFeedRow from '../components/ExpenseFeedRow';
+import ExpenseDetailModal from '../ExpenseDetailModal';
+import OpenTabsList from '../components/tab/OpenTabsList';
 import { useAppData } from '../contexts/AppDataContext';
 import { useAuth } from '../AuthContext';
 import { useIsDesktop } from '../hooks/useMediaQuery';
@@ -19,6 +21,8 @@ import { useShellActions } from '../layouts/shellActions';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useExpenseFeed } from '../hooks/useExpenseFeed';
 import { useExpenseLabels } from '../hooks/useExpenseLabels';
+import { useOpenExpense } from '../hooks/useOpenExpense';
+import { useOpenTabs } from '../hooks/useOpenTabs';
 import { useSettlement } from '../hooks/useSettlement';
 import { netForGroup } from '../utils/groupBalances';
 import { settlementTotal } from '../utils/settlement';
@@ -56,8 +60,10 @@ const OverviewPage: React.FC = () => {
         displayCurrency,
         pendingRequests,
     } = useAppData();
-    const { expenses, loading } = useExpenseFeed();
+    const { expenses, loading, reload } = useExpenseFeed();
     const { payerName, groupName } = useExpenseLabels();
+    const openExpense = useOpenExpense();
+    const { openTabs } = useOpenTabs();
 
     const { counterparties } = useSettlement();
 
@@ -124,6 +130,25 @@ const OverviewPage: React.FC = () => {
         />
     );
 
+    /**
+     * A tab has no page listing it and disappears from view the moment you
+     * navigate away, so it gets its own card above the feed rather than a row
+     * inside it. Hidden entirely when there are none.
+     */
+    const openTabsCard = openTabs.length > 0 && (
+        <Card className="overflow-hidden">
+            <div className="flex items-baseline gap-2.5 px-[18px] pt-3.5 pb-1.5">
+                <div className="text-[15px] font-medium">Open tabs</div>
+                <div className="ml-auto text-[12.5px] text-sw-dim">
+                    {openTabs.length}
+                </div>
+            </div>
+            <div className="px-2.5 pt-1 pb-3">
+                <OpenTabsList tabs={openTabs} size="sm" />
+            </div>
+        </Card>
+    );
+
     const latelyCard = (
         <Card className="overflow-hidden">
             <div className="flex items-baseline gap-2.5 px-[18px] pt-3.5 pb-1.5">
@@ -151,9 +176,7 @@ const OverviewPage: React.FC = () => {
                             expense={expense}
                             payerName={payerName}
                             groupName={groupName(expense)}
-                            onClick={() =>
-                                expense.group_id && navigate(`/groups/${expense.group_id}`)
-                            }
+                            onClick={() => openExpense.open(expense)}
                         />
                     ))
                 )}
@@ -388,6 +411,7 @@ const OverviewPage: React.FC = () => {
 
                     <div className="grid grid-cols-[1.5fr_1fr] gap-[18px] items-start">
                         <div className="flex flex-col gap-[18px] min-w-0">
+                            {openTabsCard}
                             {latelyCard}
                         </div>
                         <div className="flex flex-col gap-[18px] min-w-0">
@@ -504,6 +528,18 @@ const OverviewPage: React.FC = () => {
                     )}
                 </Card>
 
+                {openTabs.length > 0 && (
+                    <div>
+                        <div className="flex items-baseline mb-1.5">
+                            <div className="text-[15px] font-medium">Open tabs</div>
+                            <div className="ml-auto text-[12.5px] text-sw-dim">
+                                {openTabs.length}
+                            </div>
+                        </div>
+                        <OpenTabsList tabs={openTabs} size="sm" />
+                    </div>
+                )}
+
                 {groupsStrip}
 
                 <div>
@@ -531,16 +567,29 @@ const OverviewPage: React.FC = () => {
                                     expense={expense}
                                     payerName={payerName}
                                     groupName={groupName(expense)}
-                                    onClick={() =>
-                                        expense.group_id &&
-                                        navigate(`/groups/${expense.group_id}`)
-                                    }
+                                    onClick={() => openExpense.open(expense)}
                                 />
                             ))
                         )}
                     </div>
                 </div>
             </div>
+
+            {openExpense.expenseId !== null && (
+                <ExpenseDetailModal
+                    isOpen
+                    expenseId={openExpense.expenseId}
+                    onClose={openExpense.close}
+                    onExpenseUpdated={reload}
+                    onExpenseDeleted={() => {
+                        openExpense.close();
+                        reload();
+                    }}
+                    groupMembers={openExpense.members}
+                    groupGuests={openExpense.guests}
+                    currentUserId={user?.id ?? 0}
+                />
+            )}
         </>
     );
 };

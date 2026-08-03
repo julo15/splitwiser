@@ -123,6 +123,19 @@ Refused with `409` if the tab is already closed, has no items, or nobody has
 joined. Refused with `400` if the chosen payer is anonymous — an expense must
 be paid by a real account for balances to work.
 
+### Getting back to a closed tab
+
+Closed tabs are not listed anywhere — `GET /tabs` is filtered to `open` by
+every caller — so the expense is the only handle on one. `GET
+/expenses/{id}` therefore carries `tab_id`, derived from `Tab.expense_id`, and
+the expense detail view turns it into a "View tab" action.
+
+Only for the tab's owner. `GET /tabs/{id}` answers everyone else with `404`
+precisely so it never confirms a tab exists, so `tab_id` is filtered on
+`created_by_id` to avoid both leaking that and offering a link that dead-ends.
+Anonymous claimers never had an account to read the expense with in the first
+place.
+
 ## API Endpoints
 
 ### Owner (authenticated)

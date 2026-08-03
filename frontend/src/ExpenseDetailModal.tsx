@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     ArrowSquareOut,
     CaretRight,
     Check,
     Info,
     Plus,
+    Receipt,
     Warning,
 } from '@phosphor-icons/react';
 import ParticipantSelector from './ParticipantSelector';
@@ -96,6 +98,7 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
     groupDefaultCurrency
 }) => {
     const { isOnline: _isOnline } = useSync();
+    const navigate = useNavigate();
     const [expense, setExpense] = useState<ExpenseWithSplits | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -1024,6 +1027,33 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                         </div>
                                     )}
 
+
+                                    {/*
+                                      * A tab settles into one expense, and the
+                                      * split breakdown below flattens it to a
+                                      * figure per person. Who claimed which
+                                      * item only exists on the tab's board, and
+                                      * closed tabs are not listed anywhere, so
+                                      * this is the only way back to it.
+                                      *
+                                      * Sent only to the tab's owner; nobody
+                                      * else can open the board.
+                                      */}
+                                    {expense.tab_id && (
+                                        <div className="border-t border-sw-line pt-4 mb-4">
+                                            <h4 className={SECTION_CLASS}>Tab</h4>
+                                            <Button
+                                                variant="secondary"
+                                                onClick={() => {
+                                                    handleClose();
+                                                    navigate(`/tabs/${expense.tab_id}`);
+                                                }}
+                                                icon={<Receipt size={15} />}
+                                            >
+                                                View tab
+                                            </Button>
+                                        </div>
+                                    )}
 
                                     {/* Receipt Image */}
                                     {expense.receipt_image_path && (
