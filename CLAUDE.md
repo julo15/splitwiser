@@ -282,7 +282,8 @@ Owner (authenticated):
 
 Public (no auth, rate-limited):
 - `GET /public/tabs/{share_token}` - Read the tab
-- `POST /public/tabs/{share_token}/join` - Join with a name; returns a claim token
+- `POST /public/tabs/{share_token}/join` - Join with a name; returns a claim token. Names are unique per tab, so a name already at the table is refused
+- `POST /public/tabs/{share_token}/rename` - Change the name you claim under, keeping your claims; the claim token is unchanged
 - `POST /public/tabs/{share_token}/items/{item_id}/claim` - Claim or release, authenticated by `claim_token`
 
 ## Key Database Fields
@@ -298,7 +299,7 @@ Public (no auth, rate-limited):
 - ExpenseItemAssignment: `user_id`, `is_guest`
 - Tab: `share_token`, `token_expires_at`, `revoked`, `status`, `tax`, `tip`, `total`, `expense_id`
 - TabItem: `description`, `price`, `added_manually`
-- TabParticipant: `display_name`, `user_id` (null when anonymous), `claim_token`
+- TabParticipant: `display_name` (unique per tab, case-insensitively), `user_id` (null when anonymous), `claim_token`
 - TabItemClaim: `item_id`, `participant_id` (unique together)
 
 ## Detailed Documentation

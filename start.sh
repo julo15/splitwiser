@@ -10,6 +10,7 @@ echo "Running migrations..."
 python migrations/add_profile_password_recovery.py --db-path "$DATABASE_PATH"
 python migrations/add_google_oauth.py --db-path "$DATABASE_PATH"
 python migrations/add_venmo_username.py --db-path "$DATABASE_PATH"
+python migrations/add_tab_participant_name_uniqueness.py --db-path "$DATABASE_PATH"
 
 # Start supervisor
 echo "Starting Supervisor..."

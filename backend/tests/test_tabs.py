@@ -241,6 +241,216 @@ class TestJoiningAndClaiming:
         assert response.status_code == 403
 
 
+class TestParticipantIdentity:
+    """
+    One person is one row. The claim token is who somebody is; the name is a
+    label on that row, and changing it must not seat a second them.
+    """
+
+    def join(self, client, tab, name):
+        response = client.post(
+            f"/public/tabs/{tab['share_token']}/join", json={"display_name": name}
+        )
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    def test_renaming_keeps_the_same_person_and_their_claims(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        token, item_id = tab["share_token"], tab["items"][0]["id"]
+
+        joined = self.join(client, tab, "Maya")
+        client.post(
+            f"/public/tabs/{token}/items/{item_id}/claim",
+            json={"claim_token": joined["claim_token"], "claimed": True},
+        )
+
+        response = client.post(
+            f"/public/tabs/{token}/rename",
+            json={"claim_token": joined["claim_token"], "display_name": "Maya B"},
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+
+        # Same row, new label — and the item they ticked is still theirs.
+        assert body["participant"]["id"] == joined["participant"]["id"]
+        assert body["participant"]["display_name"] == "Maya B"
+        assert [p["display_name"] for p in body["tab"]["participants"]] == [
+            "Vince Woo",
+            "Maya B",
+        ]
+        claimed = next(i for i in body["tab"]["items"] if i["id"] == item_id)
+        assert claimed["claimed_by"] == [joined["participant"]["id"]]
+
+    def test_renaming_does_not_hand_out_a_new_claim_token(self, client):
+        """The old token is the claimer's only way back, so it keeps working."""
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        token = tab["share_token"]
+
+        joined = self.join(client, tab, "Maya")
+        renamed = client.post(
+            f"/public/tabs/{token}/rename",
+            json={"claim_token": joined["claim_token"], "display_name": "Maya B"},
+        ).json()
+        assert "claim_token" not in renamed
+
+        still_works = client.post(
+            f"/public/tabs/{token}/items/{tab['items'][1]['id']}/claim",
+            json={"claim_token": joined["claim_token"], "claimed": True},
+        )
+        assert still_works.status_code == 200
+
+    def test_rejoining_under_the_same_name_is_refused(self, client):
+        """
+        The bug this guards: the claim page re-submitted the join form to
+        change a name, so an unchanged name seated a duplicate person and the
+        first one's claims were stranded.
+        """
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        self.join(client, tab, "Maya")
+
+        response = client.post(
+            f"/public/tabs/{tab['share_token']}/join",
+            json={"display_name": "Maya"},
+        )
+        assert response.status_code == 409
+        assert "already claiming" in response.json()["detail"]
+
+    def test_a_name_is_taken_regardless_of_case_or_padding(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        self.join(client, tab, "Maya")
+
+        for variant in ("maya", "  MAYA  ", "MaYa"):
+            response = client.post(
+                f"/public/tabs/{tab['share_token']}/join",
+                json={"display_name": variant},
+            )
+            assert response.status_code == 409, variant
+
+    def test_the_hosts_name_is_taken_too(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+
+        response = client.post(
+            f"/public/tabs/{tab['share_token']}/join",
+            json={"display_name": "vince woo"},
+        )
+        assert response.status_code == 409
+
+    def test_names_are_stored_tidied_up(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+
+        joined = self.join(client, tab, "  Maya   B  ")
+        assert joined["participant"]["display_name"] == "Maya B"
+
+    def test_a_different_name_still_seats_a_second_person(self, client):
+        """Uniqueness must not stop the rest of the table from joining."""
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+
+        first = self.join(client, tab, "Maya")
+        second = self.join(client, tab, "Maya B")
+        assert first["participant"]["id"] != second["participant"]["id"]
+        assert len(second["tab"]["participants"]) == 3
+
+    def test_renaming_onto_someone_elses_name_is_refused(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        self.join(client, tab, "Maya")
+        joined = self.join(client, tab, "Sam")
+
+        response = client.post(
+            f"/public/tabs/{tab['share_token']}/rename",
+            json={"claim_token": joined["claim_token"], "display_name": "MAYA"},
+        )
+        assert response.status_code == 409
+
+    def test_renaming_to_your_own_name_is_a_no_op(self, client):
+        """Re-submitting the form unchanged must not read as a collision."""
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        joined = self.join(client, tab, "Maya")
+
+        response = client.post(
+            f"/public/tabs/{tab['share_token']}/rename",
+            json={"claim_token": joined["claim_token"], "display_name": "Maya"},
+        )
+        assert response.status_code == 200
+        assert len(response.json()["tab"]["participants"]) == 2
+
+    def test_renaming_needs_a_claim_token_for_this_tab(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        first = make_tab(client, headers)
+        second = make_tab(client, headers, name="Other Bar")
+        joined = self.join(client, first, "Maya")
+
+        unknown = client.post(
+            f"/public/tabs/{first['share_token']}/rename",
+            json={"claim_token": "made-up", "display_name": "Maya B"},
+        )
+        assert unknown.status_code == 403
+
+        # A token from another tab must not rename anyone here either.
+        wrong_tab = client.post(
+            f"/public/tabs/{second['share_token']}/rename",
+            json={"claim_token": joined["claim_token"], "display_name": "Maya B"},
+        )
+        assert wrong_tab.status_code == 403
+
+    def test_a_closed_tab_refuses_renames(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        joined = self.join(client, tab, "Maya")
+        client.post(
+            f"/public/tabs/{tab['share_token']}/items/{tab['items'][0]['id']}/claim",
+            json={"claim_token": joined["claim_token"], "claimed": True},
+        )
+        assert client.post(f"/tabs/{tab['id']}/close", json={}, headers=headers).status_code == 200
+
+        response = client.post(
+            f"/public/tabs/{tab['share_token']}/rename",
+            json={"claim_token": joined["claim_token"], "display_name": "Maya B"},
+        )
+        assert response.status_code == 409
+
+    def test_the_schema_refuses_a_duplicate_name(self, client, db_session):
+        """
+        The router checks first, but the index is the backstop for two phones
+        typing the same name at the same moment.
+        """
+        from sqlalchemy.exc import IntegrityError
+
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        self.join(client, tab, "Maya")
+
+        db_session.add(
+            models.TabParticipant(
+                tab_id=tab["id"],
+                display_name="maya",
+                user_id=None,
+                claim_token="a-different-token",
+            )
+        )
+        with pytest.raises(IntegrityError):
+            db_session.commit()
+        db_session.rollback()
+
+    def test_the_same_name_on_another_tab_is_fine(self, client, db_session):
+        """Uniqueness is per tab: every table gets its own Maya."""
+        headers = register(client, "vince@example.com", "Vince Woo")
+        first = make_tab(client, headers)
+        second = make_tab(client, headers, name="Other Bar")
+
+        self.join(client, first, "Maya")
+        joined = self.join(client, second, "Maya")
+        assert joined["participant"]["display_name"] == "Maya"
+
+
 class TestManualItems:
     def test_the_owner_can_add_a_line_to_a_live_tab(self, client):
         headers = register(client, "vince@example.com", "Vince Woo")

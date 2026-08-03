@@ -4,10 +4,12 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Index,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
+    func,
 )
 
 from database import Base
@@ -244,6 +246,9 @@ class TabParticipant(Base):
     `user_id` is set when a signed-in user claims; anonymous claimers are
     identified only by their own `claim_token`, which is what lets them come
     back and change their mind without an account.
+
+    One person is one row for the life of the tab: changing your name renames
+    this row rather than seating a second you.
     """
     __tablename__ = "tab_participants"
 
@@ -253,6 +258,20 @@ class TabParticipant(Base):
     user_id = Column(Integer, nullable=True, index=True)
     claim_token = Column(String, unique=True, index=True, nullable=False)
     joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # A name is how everyone else at the table tells people apart, so two
+    # "Maya"s on one tab are unusable however they got there — and a second
+    # row for someone already seated silently strands their claims. Compared
+    # case-insensitively because "maya" and "Maya" are the same person to
+    # everybody reading the board. Mirrors the migration's unique index.
+    __table_args__ = (
+        Index(
+            "ux_tab_participants_tab_name",
+            "tab_id",
+            func.lower(display_name),
+            unique=True,
+        ),
+    )
 
 
 class TabItemClaim(Base):

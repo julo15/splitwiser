@@ -612,6 +612,32 @@ export const publicTabsApi = {
         return response.json();
     },
 
+    // Change the name you are claiming under. Distinct from join on purpose:
+    // joining again would seat a second you and strand the claims you already
+    // made under a name nobody is answering to.
+    rename: async (
+        shareToken: string,
+        claimToken: string,
+        displayName: string
+    ) => {
+        const response = await fetch(
+            `${API_BASE_URL}/public/tabs/${encodeURIComponent(shareToken)}/rename`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    claim_token: claimToken,
+                    display_name: displayName,
+                }),
+            }
+        );
+        if (!response.ok) {
+            const detail = await response.json().catch(() => ({}));
+            throw new Error(detail.detail || 'Could not change your name');
+        }
+        return response.json();
+    },
+
     claim: async (
         shareToken: string,
         itemId: number,

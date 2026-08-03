@@ -17,6 +17,14 @@ So the token is:
 Claimers are identified by their own `claim_token`, issued on join. It is the
 only thing that lets an anonymous person amend their own claims, so it is
 never returned in a listing — only once, to the person who just joined.
+
+That token, not the name, is who somebody *is* here. Joining seats a new
+person exactly once; coming back under a different name renames the row the
+token points at, so claims never strand under a name nobody is using. Names
+are only labels, but they are the labels everyone else reads, so they are also
+unique per tab (case-insensitively) — a second "Maya" is refused rather than
+merged into the first, since merging on name alone would hand anyone holding
+the link the power to edit her claims.
 """
 
 import secrets
@@ -24,6 +32,8 @@ from datetime import datetime, timedelta
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import models
@@ -72,6 +82,53 @@ def _load_tab_by_token(db: Session, share_token: str) -> models.Tab:
     if tab.token_expires_at < datetime.utcnow():
         raise HTTPException(status_code=410, detail="This link has expired")
     return tab
+
+
+# Said to whoever picks a name someone at the table is already using. It has
+# to explain the fix, because "taken" reads as a bug to someone who has never
+# seen this tab before.
+NAME_TAKEN_DETAIL = (
+    "Someone at this table is already claiming as that name. "
+    "Add a last initial so everyone can tell you apart."
+)
+
+
+def _clean_name(raw: str) -> str:
+    """Trim and collapse whitespace. ' Maya  B ' and 'Maya B' are one name."""
+    return " ".join(raw.split())
+
+
+def _name_is_taken(
+    db: Session, tab_id: int, name: str, *, excluding_id: Optional[int] = None
+) -> bool:
+    query = db.query(models.TabParticipant.id).filter(
+        models.TabParticipant.tab_id == tab_id,
+        func.lower(models.TabParticipant.display_name) == name.lower(),
+    )
+    if excluding_id is not None:
+        query = query.filter(models.TabParticipant.id != excluding_id)
+    return db.query(query.exists()).scalar()
+
+
+def _participant_for_claim_token(
+    db: Session, tab: models.Tab, claim_token: str
+) -> models.TabParticipant:
+    """
+    Resolve an anonymous claimer from the only credential they have.
+
+    Scoped to this tab: a token issued for another tab must not work here.
+    """
+    participant = (
+        db.query(models.TabParticipant)
+        .filter(
+            models.TabParticipant.claim_token == claim_token,
+            models.TabParticipant.tab_id == tab.id,
+        )
+        .first()
+    )
+    if not participant:
+        raise HTTPException(status_code=403, detail="Join the tab first")
+    return participant
 
 
 def _claims_by_item(db: Session, tab_id: int) -> dict:
@@ -193,7 +250,7 @@ def create_tab(
     db.add(
         models.TabParticipant(
             tab_id=tab.id,
-            display_name=current_user.full_name or "You",
+            display_name=_clean_name(current_user.full_name or "") or "You",
             user_id=current_user.id,
             claim_token=secrets.token_urlsafe(32),
         )
@@ -581,14 +638,22 @@ def join_public_tab(
 
     Returns a claim token that identifies this person on later requests. There
     is no account, so that token is the only handle they have on their claims.
+
+    Seating someone is a one-time act. A caller who already holds a claim token
+    must rename instead — see `rename_public_tab_participant`. Joining again
+    under a name already at the table is refused rather than merged: the token
+    is the credential, and matching on name would let anyone with the link
+    claim to be somebody who is already here.
     """
     tab = _load_tab_by_token(db, share_token)
     if tab.status != "open":
         raise HTTPException(status_code=409, detail="This tab is closed")
 
-    name = payload.display_name.strip()
+    name = _clean_name(payload.display_name)
     if not name:
         raise HTTPException(status_code=400, detail="Please give a name")
+    if _name_is_taken(db, tab.id, name):
+        raise HTTPException(status_code=409, detail=NAME_TAKEN_DETAIL)
 
     participant = models.TabParticipant(
         tab_id=tab.id,
@@ -597,7 +662,12 @@ def join_public_tab(
         claim_token=secrets.token_urlsafe(32),
     )
     db.add(participant)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two phones typing the same name at once: the index decides.
+        db.rollback()
+        raise HTTPException(status_code=409, detail=NAME_TAKEN_DETAIL) from None
     db.refresh(participant)
 
     return schemas.TabJoinResponse(
@@ -607,6 +677,55 @@ def join_public_tab(
             user_id=None,
         ),
         claim_token=participant.claim_token,
+        tab=_public_tab_out(db, tab),
+    )
+
+
+@router.post(
+    "/public/tabs/{share_token}/rename",
+    response_model=schemas.TabIdentityResponse,
+    dependencies=[Depends(public_tab_rate_limiter)],
+)
+def rename_public_tab_participant(
+    share_token: str,
+    payload: schemas.TabRenameRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Change the name you are claiming under, keeping the claims you made.
+
+    People correct a typo or add a last initial *after* ticking half the bill,
+    and the row they are already claiming from is the one that has to change.
+    Rejoining under the new name would seat a stranger and leave their items
+    under a name nobody is answering to — so it renames in place, and the claim
+    token stays the same because it is the claimer's only way back.
+    """
+    tab = _load_tab_by_token(db, share_token)
+    if tab.status != "open":
+        raise HTTPException(status_code=409, detail="This tab is closed")
+
+    participant = _participant_for_claim_token(db, tab, payload.claim_token)
+
+    name = _clean_name(payload.display_name)
+    if not name:
+        raise HTTPException(status_code=400, detail="Please give a name")
+    if _name_is_taken(db, tab.id, name, excluding_id=participant.id):
+        raise HTTPException(status_code=409, detail=NAME_TAKEN_DETAIL)
+
+    participant.display_name = name
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=NAME_TAKEN_DETAIL) from None
+    db.refresh(participant)
+
+    return schemas.TabIdentityResponse(
+        participant=schemas.TabParticipantOut(
+            id=participant.id,
+            display_name=participant.display_name,
+            user_id=participant.user_id,
+        ),
         tab=_public_tab_out(db, tab),
     )
 
@@ -632,18 +751,7 @@ def claim_public_tab_item(
     if tab.status != "open":
         raise HTTPException(status_code=409, detail="This tab is closed")
 
-    participant = (
-        db.query(models.TabParticipant)
-        .filter(
-            models.TabParticipant.claim_token == payload.claim_token,
-            # Scope the claim token to this tab: a token from another tab must
-            # not be usable here.
-            models.TabParticipant.tab_id == tab.id,
-        )
-        .first()
-    )
-    if not participant:
-        raise HTTPException(status_code=403, detail="Join the tab first")
+    participant = _participant_for_claim_token(db, tab, payload.claim_token)
 
     item = (
         db.query(models.TabItem)

@@ -52,3 +52,9 @@ export interface TabJoinResponse {
     claim_token: string;
     tab: PublicTab;
 }
+
+/** A rename result. No claim token — the caller already holds theirs. */
+export interface TabIdentityResponse {
+    participant: TabParticipant;
+    tab: PublicTab;
+}

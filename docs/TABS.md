@@ -48,12 +48,30 @@ scan receipt → open tab → share link → people join and claim → close →
   from the paper receipt beside it.
 
 **TabParticipant**
-- `id`, `tab_id`, `display_name`, `joined_at`
+- `id`, `tab_id`, `display_name` - unique per tab, case-insensitively:
+  `ux_tab_participants_tab_name` on `(tab_id, lower(display_name))`
+- `joined_at`
 - `user_id` - set when a signed-in user claims; `NULL` for anonymous claimers
 - `claim_token` - the anonymous claimer's only handle on their own claims.
   Returned exactly once, at join. Never included in any listing.
 
 Participants are created the moment somebody claims, not by invitation.
+
+### One person, one row
+
+The claim token is who somebody *is*; the name is a label on that row. Joining
+seats a person exactly once, so changing a name renames the existing row
+(`POST /public/tabs/{token}/rename`) rather than joining again — a second row
+would leave everything already ticked stranded under a name nobody is
+answering to, and show the table two people who are one.
+
+Names are also unique per tab, enforced by the index above, because a name is
+how everyone else at the table tells people apart and two "Maya"s are unusable
+however they arose. A join under a name already present is refused with `409`
+and a prompt to add a last initial. It is deliberately **not** resolved by
+handing the newcomer the existing participant: the claim token is the
+credential, and matching on name alone would let anyone holding the link edit
+Maya's claims by typing "Maya".
 
 **TabItemClaim**
 - `id`, `tab_id`, `item_id`, `participant_id`
@@ -158,7 +176,9 @@ place.
 ### Public (no auth, rate-limited)
 - `GET /public/tabs/{share_token}` - read the tab
 - `POST /public/tabs/{share_token}/join` - join with a name; returns a claim
-  token
+  token. `409` if that name is already at the table.
+- `POST /public/tabs/{share_token}/rename` - change the name you claim under,
+  keeping your claims and your claim token. Authenticated by `claim_token`.
 - `POST /public/tabs/{share_token}/items/{item_id}/claim` - claim or release,
   authenticated by `claim_token` in the body
 
@@ -195,10 +215,16 @@ called out separately.
 The board polls every 5 seconds while the tab is open, because claims arrive
 from other people's phones.
 
-## Migration
+## Migrations
 
 `backend/migrations/add_tabs.py` — additive, idempotent, four new tables.
 Supports `--dry-run`.
+
+`backend/migrations/add_tab_participant_name_uniqueness.py` — adds
+`ux_tab_participants_tab_name`. Databases written before the rename endpoint
+existed can hold duplicates, so it suffixes the later of each pair ("Maya" →
+"Maya (2)") before creating the index. Runs from `start.sh`; idempotent, and
+supports `--dry-run`.
 
 ## Not Built
 

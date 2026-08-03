@@ -698,6 +698,18 @@ class TabJoinResponse(BaseModel):
     tab: PublicTabOut
 
 
+class TabRenameRequest(BaseModel):
+    """Change the name you are claiming under, keeping the claims you made."""
+    claim_token: str = Field(min_length=1, max_length=128)
+    display_name: str = Field(min_length=1, max_length=60)
+
+
+class TabIdentityResponse(BaseModel):
+    """A rename result. No claim token: the caller already holds theirs."""
+    participant: TabParticipantOut
+    tab: PublicTabOut
+
+
 class TabClaimRequest(BaseModel):
     claim_token: str = Field(min_length=1, max_length=128)
     claimed: bool = True
