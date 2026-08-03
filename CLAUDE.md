@@ -96,7 +96,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - Refresh tokens stored hashed (SHA-256) in database with server-side revocation
 - Itemized expenses use proportional tax/tip distribution
 - Settling up can hand off to Venmo (app scheme first, https fallback) with the amount pre-filled; it never marks anything paid, since there is no callback
-- Tabs are share-link bills with no group: high-entropy expiring write tokens, anonymous claimers held by their own claim token, unclaimed lines spread across everyone at close
+- Tabs are share-link bills with no group: high-entropy expiring write tokens, anonymous claimers held by their own claim token, signed-in claimers seated as their account so the closed tab becomes a real shared expense, unclaimed lines spread across everyone at close
 - Receipt uploads (images and PDFs) stored in `data/receipts/` directory (configurable via `DATA_DIR` env var); PDFs are rasterized per-page for the LLM but the original file is preserved
 
 ## Development Commands
@@ -282,7 +282,8 @@ Owner (authenticated):
 
 Public (no auth, rate-limited):
 - `GET /public/tabs/{share_token}` - Read the tab
-- `POST /public/tabs/{share_token}/join` - Join with a name; returns a claim token
+- `POST /public/tabs/{share_token}/join` - Join with a name; returns a claim token. Names are unique per tab, so a name already at the table is refused. Optionally authenticated: a signed-in claimer is seated as their account (and can bind it to a seat they already claimed from anonymously), so closing the tab reaches their balances instead of leaving a guest line
+- `POST /public/tabs/{share_token}/rename` - Change the name you claim under, keeping your claims; the claim token is unchanged
 - `POST /public/tabs/{share_token}/items/{item_id}/claim` - Claim or release, authenticated by `claim_token`
 
 ## Key Database Fields
@@ -298,7 +299,7 @@ Public (no auth, rate-limited):
 - ExpenseItemAssignment: `user_id`, `is_guest`
 - Tab: `share_token`, `token_expires_at`, `revoked`, `status`, `tax`, `tip`, `total`, `expense_id`
 - TabItem: `description`, `price`, `added_manually`
-- TabParticipant: `display_name`, `user_id` (null when anonymous), `claim_token`
+- TabParticipant: `display_name` (unique per tab, case-insensitively), `user_id` (null when anonymous; unique per tab otherwise), `claim_token`
 - TabItemClaim: `item_id`, `participant_id` (unique together)
 
 ## Detailed Documentation

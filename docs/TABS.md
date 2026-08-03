@@ -48,12 +48,62 @@ scan receipt → open tab → share link → people join and claim → close →
   from the paper receipt beside it.
 
 **TabParticipant**
-- `id`, `tab_id`, `display_name`, `joined_at`
+- `id`, `tab_id`, `display_name` - unique per tab, case-insensitively:
+  `ux_tab_participants_tab_name` on `(tab_id, lower(display_name))`
+- `joined_at`
 - `user_id` - set when a signed-in user claims; `NULL` for anonymous claimers
 - `claim_token` - the anonymous claimer's only handle on their own claims.
   Returned exactly once, at join. Never included in any listing.
 
 Participants are created the moment somebody claims, not by invitation.
+
+### One person, one row
+
+The claim token is who somebody *is*; the name is a label on that row. Joining
+seats a person exactly once, so changing a name renames the existing row
+(`POST /public/tabs/{token}/rename`) rather than joining again — a second row
+would leave everything already ticked stranded under a name nobody is
+answering to, and show the table two people who are one.
+
+An account is the same invariant on the other axis, held by
+`ux_tab_participants_tab_user` on `(tab_id, user_id)`. `NULL` repeats freely
+under a unique index, so anonymous seats are unaffected while a signed-in
+person cannot be seated twice — which would put two splits for one user on the
+closed expense.
+
+### Signed-in claimers
+
+`POST /public/tabs/{token}/join` takes an *optional* bearer token, and an
+account on the seat is what makes the difference at close: a participant with
+`user_id` becomes an `ExpenseSplit`, so the bill lands in their balances and on
+the payer's person page, where an anonymous one becomes an `ExpenseGuest` the
+payer has to chase in person. So a signed-in caller is recognised three ways:
+
+1. **Already seated** — the host opening their own link, or anyone returning on
+   a second device — is handed back the seat they have, along with its claim
+   token. The account, not the browser, says who they are, and without the
+   token they could not amend the claims they came back for. It is not a leak:
+   they proved the account it belongs to.
+2. **Holding an anonymous seat's claim token** — they claimed first and signed
+   in afterwards — has the account bound to that seat, keeping every line they
+   already ticked. A seat already owned by a different account is never
+   adopted.
+3. **Otherwise** seated fresh, under the name on their account (`full_name`,
+   falling back to the local part of their email).
+
+Credentials that do not check out are a `401` rather than an anonymous join:
+silently downgrading someone whose access token expired would seat them as a
+guest and quietly lose the association they came for, where a `401` lets the
+client refresh and retry. Absent credentials are simply anonymous — the link
+must keep working for the four people at the table who have never heard of us.
+
+Names are also unique per tab, enforced by the index above, because a name is
+how everyone else at the table tells people apart and two "Maya"s are unusable
+however they arose. A join under a name already present is refused with `409`
+and a prompt to add a last initial. It is deliberately **not** resolved by
+handing the newcomer the existing participant: the claim token is the
+credential, and matching on name alone would let anyone holding the link edit
+Maya's claims by typing "Maya".
 
 **TabItemClaim**
 - `id`, `tab_id`, `item_id`, `participant_id`
@@ -113,7 +163,8 @@ unnoticed (`backend/tests/test_tabs_math.py`,
 Closing writes one ordinary direct expense on the existing `group_id IS NULL`
 path:
 
-- Registered participants become `ExpenseSplit` rows.
+- Registered participants become `ExpenseSplit` rows, so the bill shows up in
+  their balances and on the payer's person page as an ordinary shared expense.
 - Anonymous participants become `ExpenseGuest` rows — the same records a direct
   expense with guests already uses.
 - The expense gets `split_type = "ITEMIZED"`, icon `🧾`, and a note naming the
@@ -158,7 +209,12 @@ place.
 ### Public (no auth, rate-limited)
 - `GET /public/tabs/{share_token}` - read the tab
 - `POST /public/tabs/{share_token}/join` - join with a name; returns a claim
-  token
+  token. `409` if that name is already at the table. Takes an optional bearer
+  token: a signed-in caller is seated as their account, and an optional
+  `claim_token` binds that account to the anonymous seat they have been
+  claiming from.
+- `POST /public/tabs/{share_token}/rename` - change the name you claim under,
+  keeping your claims and your claim token. Authenticated by `claim_token`.
 - `POST /public/tabs/{share_token}/items/{item_id}/claim` - claim or release,
   authenticated by `claim_token` in the body
 
@@ -195,10 +251,18 @@ called out separately.
 The board polls every 5 seconds while the tab is open, because claims arrive
 from other people's phones.
 
-## Migration
+## Migrations
 
 `backend/migrations/add_tabs.py` — additive, idempotent, four new tables.
 Supports `--dry-run`.
+
+`backend/migrations/add_tab_participant_name_uniqueness.py` — adds
+`ux_tab_participants_tab_name` and `ux_tab_participants_tab_user`. Databases
+written before the rename endpoint existed can hold duplicate names, so it
+suffixes the later of each pair ("Maya" → "Maya (2)") first; a repeated account
+(which no released code path produces, but which would stop the container
+booting) has the account detached from the later seat, leaving it a guest seat
+with its claims. Runs from `start.sh`; idempotent, and supports `--dry-run`.
 
 ## Not Built
 
@@ -206,3 +270,10 @@ Supports `--dry-run`.
   often have no account, so there is no address to reach them at.
 - **Retroactive group promotion.** Offering to turn recurring tab participants
   into a real group needs recurrence data across closed tabs.
+- **Retroactive account linking.** Someone who claims anonymously and signs up
+  a week later does not get their old tabs; the account starts counting from
+  the next one. Deliberate, not a gap — a tab is ephemeral, and reaching back
+  into settled bills to reassign guest lines would rewrite balances other
+  people have already acted on. Signing in mid-tab is a different thing and is
+  supported: the seat is adopted from the claim token this browser is holding
+  (see *Signed-in claimers*), so nothing settled is disturbed.

@@ -596,18 +596,76 @@ export const publicTabsApi = {
         return response.json();
     },
 
-    join: async (shareToken: string, displayName: string) => {
+    /**
+     * Take a seat.
+     *
+     * `withAuth` sends the access token if there is one, so a signed-in
+     * claimer is seated as their account and the closed tab reaches their
+     * balances instead of becoming a guest line. `claimToken` binds that
+     * account to a seat they have already been claiming from.
+     *
+     * Unlike apiFetch, a failed refresh never redirects to /login: most people
+     * opening this link have no account, and bouncing them would strand them.
+     */
+    join: async (
+        shareToken: string,
+        {
+            displayName,
+            claimToken,
+            withAuth = false,
+        }: { displayName?: string; claimToken?: string; withAuth?: boolean } = {}
+    ) => {
+        const path = `/public/tabs/${encodeURIComponent(shareToken)}/join`;
+        const body = JSON.stringify({
+            ...(displayName !== undefined && { display_name: displayName }),
+            ...(claimToken !== undefined && { claim_token: claimToken }),
+        });
+        const send = (token: string | null) =>
+            fetch(`${API_BASE_URL}${path}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { Authorization: `Bearer ${token}` }),
+                },
+                body,
+            });
+
+        let response = await send(withAuth ? getToken() : null);
+        // An expired access token is refused rather than quietly seating them
+        // as a guest, so this is the retry that refusal is for.
+        if (withAuth && response.status === 401) {
+            const refreshed = await refreshAccessToken();
+            response = await send(refreshed);
+        }
+        if (!response.ok) {
+            const detail = await response.json().catch(() => ({}));
+            throw new Error(detail.detail || 'Could not join this tab');
+        }
+        return response.json();
+    },
+
+    // Change the name you are claiming under. Distinct from join on purpose:
+    // joining again would seat a second you and strand the claims you already
+    // made under a name nobody is answering to.
+    rename: async (
+        shareToken: string,
+        claimToken: string,
+        displayName: string
+    ) => {
         const response = await fetch(
-            `${API_BASE_URL}/public/tabs/${encodeURIComponent(shareToken)}/join`,
+            `${API_BASE_URL}/public/tabs/${encodeURIComponent(shareToken)}/rename`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ display_name: displayName }),
+                body: JSON.stringify({
+                    claim_token: claimToken,
+                    display_name: displayName,
+                }),
             }
         );
         if (!response.ok) {
             const detail = await response.json().catch(() => ({}));
-            throw new Error(detail.detail || 'Could not join this tab');
+            throw new Error(detail.detail || 'Could not change your name');
         }
         return response.json();
     },
