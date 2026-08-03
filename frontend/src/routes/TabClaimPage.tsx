@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Check, Percent, PencilSimple } from '@phosphor-icons/react';
+import { CaretDown, Check, Percent, PencilSimple } from '@phosphor-icons/react';
 import { Button, Money } from '../components/ui';
+import { TabWorking } from '../components/tab/TabBreakdown';
 import { useAuth } from '../AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { computeTabBreakdowns, toShareItems } from '../utils/tabShares';
 import { publicTabsApi } from '../services/api';
-import { computeTabShares } from '../utils/tabShares';
 import type { PublicTab, TabIdentityResponse, TabJoinResponse } from '../types/tab';
 
 /**
@@ -60,6 +61,7 @@ const TabClaimPage: React.FC = () => {
     const [seating, setSeating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [renaming, setRenaming] = useState(false);
+    const [showWorking, setShowWorking] = useState(false);
     // One shot: if seating this account fails — their name is already at the
     // table, say — fall back to the form rather than retrying on every poll.
     const seatingAttempted = useRef(false);
@@ -136,26 +138,28 @@ const TabClaimPage: React.FC = () => {
         })();
     }, [authLoading, user, tab, identity, shareToken]);
 
-    const shareItems = useMemo(
-        () =>
-            (tab?.items ?? []).map((item) => ({
-                id: item.id,
-                price: item.price,
-                claimedBy: item.claimed_by,
-            })),
-        [tab]
-    );
+    const shareItems = useMemo(() => toShareItems(tab?.items ?? []), [tab]);
 
-    const myShare = useMemo(() => {
-        if (!tab || !identity) return 0;
-        const shares = computeTabShares(
+    /**
+     * Your own total, itemised, recomputed on every tap.
+     *
+     * The bare figure was the whole answer while the screen was just a row of
+     * checkboxes, but it cannot show the two things people actually query: the
+     * share of a line they split with someone, and the tax and tip that landed
+     * on top without ever being ticked.
+     */
+    const myBreakdown = useMemo(() => {
+        if (!tab || !identity) return null;
+        const breakdowns = computeTabBreakdowns(
             shareItems,
             tab.participants.map((p) => p.id),
             tab.tax,
             tab.tip
         );
-        return shares[identity.participantId] ?? 0;
+        return breakdowns[identity.participantId] ?? null;
     }, [tab, identity, shareItems]);
+
+    const myShare = myBreakdown?.total ?? 0;
 
     /**
      * Take a name — for the first time, or instead of the one already held.
@@ -466,14 +470,46 @@ const TabClaimPage: React.FC = () => {
                 className="px-4 pt-3.5 bg-sw-sunk border-t border-sw-line flex-none"
                 style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
             >
-                <div className="flex items-baseline mb-2.5">
-                    <div className="text-[13px] text-sw-muted">Your bit</div>
+                {/*
+                  * The total, and — a tap away — how it got there. Folded shut
+                  * by default: most taps are just another item, and the number
+                  * moving is the only feedback wanted. It is worth opening when
+                  * the number is not the one expected, which is exactly when
+                  * having to ask the host would be worst.
+                  */}
+                {showWorking && myBreakdown && (
+                    <div className="mb-2.5 rounded-sw-card bg-sw-surface shadow-[0_0_0_1px_var(--sw-line)] max-h-[45vh] overflow-auto">
+                        <TabWorking
+                            breakdown={myBreakdown}
+                            currency={tab.currency}
+                            tax={tab.tax}
+                            tip={tab.tip}
+                            possessive="Your"
+                        />
+                    </div>
+                )}
+
+                <button
+                    type="button"
+                    aria-expanded={showWorking}
+                    onClick={() => setShowWorking((shown) => !shown)}
+                    className="w-full flex items-baseline gap-1.5 mb-2.5 focus-visible:outline-2 focus-visible:outline-sw-accent focus-visible:outline-offset-2 rounded"
+                >
+                    <span className="text-[13px] text-sw-muted">Your bit</span>
+                    <CaretDown
+                        size={13}
+                        className={`text-sw-dim self-center transition-transform ${
+                            showWorking ? 'rotate-180' : ''
+                        }`}
+                        aria-hidden="true"
+                    />
                     <Money
                         amount={myShare}
                         currency={tab.currency}
                         className="ml-auto text-2xl font-medium"
                     />
-                </div>
+                </button>
+
                 <p className="text-[11.5px] text-sw-dim text-center">
                     {tab.status === 'open'
                         ? 'Your picks save as you tap. Come back any time before the tab closes.'

@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Tab breakdowns**: Every per-person total on a tab now opens onto the working
+  behind it — their items, how many ways each shared line went, their share of
+  anything nobody claimed, and their part of the tax and tip. On the host's
+  board, the close screen, the claim link and the expense a closed tab became.
+- **Results on the tab board**: A toggle switches the mobile board between the
+  items and what everyone owes. Reaching that used to mean starting the close
+  flow; the desktop board shows the breakdown under the grid.
+- **A running total on the claim link**: Tapping *Your bit* expands it into an
+  itemized breakdown that updates as items are claimed, so tax and tip stop
+  arriving unexplained.
+- **Tab detail in the expense modal**: An expense a tab closed into shows that
+  breakdown inline instead of only offering a link to the tab board.
+
+### Fixed
+
+- **Phantom payer on an open tab**: The first guest at the table was labelled as
+  having paid the bill, because an unset payer and an account-less claimer were
+  both null and matched each other.
+
 ## [2.0.0] - 2026-01-01
 
 ### Added

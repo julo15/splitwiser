@@ -158,6 +158,25 @@ close. The two test suites run the same cases so they cannot drift apart
 unnoticed (`backend/tests/test_tabs_math.py`,
 `frontend/src/utils/__tests__/tabShares.test.ts`).
 
+### Showing the working
+
+`computeTabBreakdowns` is the same computation with its intermediate steps
+kept: each person's lines, their item subtotal, their tax and tip, their total.
+`computeItemShares` and the breakdown both derive from one internal walk
+(`allocateLines`), so a person's lines always add up to the figure printed
+beside their name — the working can never contradict the total.
+
+Tax and tip are reported separately even though the server distributes them as
+a single figure. The combined share is computed first and the tax is carved out
+of it, rather than distributing each independently, so the two halves always
+add back to the cent that actually gets charged. With one of them zero the
+other takes the whole share exactly.
+
+`payerParticipantId` exists because both sides of "is this seat the payer?" are
+nullable and mean unrelated things: an open tab has no payer, and an anonymous
+claimer has no account. Comparing them directly labels the first guest at every
+open tab as having paid the bill.
+
 ## Closing
 
 Closing writes one ordinary direct expense on the existing `group_id IS NULL`
@@ -232,6 +251,9 @@ place.
   rather than the scanned photo, since a photo cannot show which lines are
   still nobody's. Fixed to the light palette in both themes.
 - `TabMatrix.tsx` - every item against every person, with per-person totals
+- `TabBreakdown.tsx` - what each person owes and why: their lines, their share
+  of anything unclaimed, their tax and tip. Rows expand; the viewer's own opens
+  first. Exports `TabWorking`, the one-person half of it, for the claim screen.
 - `TabProgress.tsx` - how much of the bill is spoken for
 - `ClaimerStack.tsx` - overlapping avatars on a claimed line
 - `QrCode.tsx` - the share link as a QR. Everyone is at the same table, so a
@@ -240,13 +262,36 @@ place.
 ### Two postures
 
 **Mobile** sorts lines into "needs a home" and "sorted" — a phone can only show
-one axis at a time, so unclaimed lines lead.
+one axis at a time, so unclaimed lines lead. A segmented control switches the
+same space to what everyone owes; the answer to "what do I owe?" used to live
+behind *Close the tab*, a button that reads like a commitment.
 
 **Desktop** shows both axes at once: the receipt on the left, the item × person
 grid on the right. Hovering a row in the grid rings the same line on the paper.
 The per-person footer totals are what closing *right now* would record, so they
 include each person's share of the unclaimed lines; the outstanding amount is
-called out separately.
+called out separately. The breakdown sits below the grid, so the totals and
+their working are on one screen.
+
+### Where the breakdown appears
+
+The same component on four surfaces, so a person's number is explained wherever
+they meet it:
+
+- **The board**, live, for the host — mobile behind the toggle, desktop under
+  the grid.
+- **The close screen**, where every row opens onto its lines. It is the last
+  look before the money becomes real balances, so it is the last chance to
+  notice somebody was charged for a bottle they never claimed.
+- **The claim screen**, for the one person reading it: *Your bit* expands into
+  their own lines, their share of anything spare, and the tax and tip that
+  arrived without ever being ticked. Recomputed on every tap.
+- **The expense detail modal**, for a closed tab. Closing writes no expense
+  items — the item detail only ever existed on the tab — so the recorded splits
+  flatten to one figure per person and the modal reads the tab back in to
+  explain them. `Tab.expense_id` is only exposed to the tab's owner, so only
+  they can make that request. The recorded *Split breakdown* stays below it:
+  the expense remains editable after the fact, and it is the record.
 
 The board polls every 5 seconds while the tab is open, because claims arrive
 from other people's phones.

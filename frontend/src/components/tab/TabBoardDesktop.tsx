@@ -4,6 +4,8 @@ import { Button, TagPill } from '../ui';
 import ReceiptPaper from './ReceiptPaper';
 import TabProgress from './TabProgress';
 import TabMatrix from './TabMatrix';
+import TabBreakdown from './TabBreakdown';
+import { payerParticipantId } from '../../utils/tabShares';
 import type { Tab } from '../../types/tab';
 
 export interface TabBoardDesktopProps {
@@ -253,6 +255,33 @@ const TabBoardDesktop: React.FC<TabBoardDesktopProps> = ({
                             never opened the link — everything here is yours to
                             correct until you close the tab.
                         </p>
+                    )}
+
+                    {/*
+                      * The grid's footer says what each person owes; this says
+                      * why. Same numbers, one walk of the same items — it is
+                      * the working, not a second opinion, and it is here rather
+                      * than a click away because "why is mine that much?" is
+                      * the question the host gets asked at the table.
+                      */}
+                    {tab.participants.length > 0 && (
+                        <div className="mt-6 max-w-[560px]">
+                            <div className="text-[11px] uppercase tracking-[0.09em] text-sw-dim mb-2">
+                                {open ? 'If you closed now' : 'What everyone owed'}
+                            </div>
+                            <TabBreakdown
+                                items={tab.items}
+                                participants={tab.participants}
+                                currency={tab.currency}
+                                tax={tab.tax}
+                                tip={tab.tip}
+                                meId={meId}
+                                payerId={payerParticipantId(
+                                    tab.participants,
+                                    tab.payer_id
+                                )}
+                            />
+                        </div>
                     )}
                 </div>
             </div>

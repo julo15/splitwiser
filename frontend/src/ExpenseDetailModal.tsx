@@ -16,6 +16,7 @@ import SplitDetailsInput from './components/expense/SplitDetailsInput';
 import IconSelector from './components/expense/IconSelector';
 import AddItemModal from './components/AddItemModal';
 import AlertDialog from './components/AlertDialog';
+import TabBreakdown from './components/tab/TabBreakdown';
 import { useItemizedExpense } from './hooks/useItemizedExpense';
 import { useSplitDetails } from './hooks/useSplitDetails';
 import type {
@@ -42,9 +43,11 @@ import {
     amountToCents,
     centsToDisplayAmount,
 } from './utils/expenseTransformations';
+import { payerParticipantId } from './utils/tabShares';
 import { formatMoney, formatDate, formatItemPercent } from './utils/formatters';
 import { CURRENCIES } from './utils/currencyHelpers';
-import { expensesApi } from './services/api';
+import type { Tab } from './types/tab';
+import { expensesApi, tabsApi } from './services/api';
 import { offlineExpensesApi } from './services/offlineApi';
 import { useSync } from './contexts/SyncContext';
 import { getApiUrl } from './api';
@@ -120,6 +123,8 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
     const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showExchangeRateInfo, setShowExchangeRateInfo] = useState(false);
+    /** The tab this expense closed from, for expenses that came from one. */
+    const [tab, setTab] = useState<Tab | null>(null);
     const [alertDialog, setAlertDialog] = useState<{
         isOpen: boolean;
         title: string;
@@ -181,6 +186,34 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             populateFormFromExpense(expense);
         }
     }, [expense]);
+
+    /**
+     * Pull in the tab this expense closed from, if it is one.
+     *
+     * A closed tab writes its expense with `split_type = "ITEMIZED"` but no
+     * expense items — the item detail only ever existed on the tab — so the
+     * itemised breakdown below has nothing to work from and the splits flatten
+     * to one figure per person. The tab still holds who claimed what, and
+     * `tab_id` is only ever sent to its owner, so this is both the one place
+     * that detail can come from and a request only the owner can make.
+     */
+    useEffect(() => {
+        const tabId = expense?.tab_id;
+        if (!tabId) {
+            setTab(null);
+            return;
+        }
+        let cancelled = false;
+        tabsApi
+            .getById(tabId)
+            .then((data: Tab) => !cancelled && setTab(data))
+            // A tab that will not load is not worth an error: the split
+            // breakdown below still stands on its own.
+            .catch(() => !cancelled && setTab(null));
+        return () => {
+            cancelled = true;
+        };
+    }, [expense?.tab_id]);
 
     const fetchExpense = async () => {
         setIsLoading(true);
@@ -1032,26 +1065,64 @@ const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                                       * A tab settles into one expense, and the
                                       * split breakdown below flattens it to a
                                       * figure per person. Who claimed which
-                                      * item only exists on the tab's board, and
-                                      * closed tabs are not listed anywhere, so
-                                      * this is the only way back to it.
+                                      * item only exists on the tab, so it is
+                                      * read in and shown here rather than
+                                      * behind a link: sending someone to
+                                      * another screen to find out why their
+                                      * number is their number is the long way
+                                      * round to the question this modal exists
+                                      * to answer.
                                       *
                                       * Sent only to the tab's owner; nobody
-                                      * else can open the board.
+                                      * else can load the tab at all.
                                       */}
                                     {expense.tab_id && (
                                         <div className="border-t border-sw-line pt-4 mb-4">
-                                            <h4 className={SECTION_CLASS}>Tab</h4>
-                                            <Button
-                                                variant="secondary"
-                                                onClick={() => {
-                                                    handleClose();
-                                                    navigate(`/tabs/${expense.tab_id}`);
-                                                }}
-                                                icon={<Receipt size={15} />}
-                                            >
-                                                View tab
-                                            </Button>
+                                            <h4 className={SECTION_CLASS}>
+                                                From a tab
+                                            </h4>
+                                            {tab ? (
+                                                <>
+                                                    <TabBreakdown
+                                                        items={tab.items}
+                                                        participants={tab.participants}
+                                                        currency={tab.currency}
+                                                        tax={tab.tax}
+                                                        tip={tab.tip}
+                                                        meId={
+                                                            tab.participants.find(
+                                                                (p) => p.user_id === currentUserId
+                                                            )?.id ?? null
+                                                        }
+                                                        payerId={payerParticipantId(
+                                                            tab.participants,
+                                                            tab.payer_id
+                                                        )}
+                                                        className="mb-3"
+                                                    />
+                                                    <Button
+                                                        variant="secondary"
+                                                        onClick={() => {
+                                                            handleClose();
+                                                            navigate(`/tabs/${expense.tab_id}`);
+                                                        }}
+                                                        icon={<Receipt size={15} />}
+                                                    >
+                                                        Open the tab
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={() => {
+                                                        handleClose();
+                                                        navigate(`/tabs/${expense.tab_id}`);
+                                                    }}
+                                                    icon={<Receipt size={15} />}
+                                                >
+                                                    View tab
+                                                </Button>
+                                            )}
                                         </div>
                                     )}
 

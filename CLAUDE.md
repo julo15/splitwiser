@@ -64,7 +64,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `frontend/src/types/` - TypeScript definitions (group.ts, expense.ts, balance.ts, friend.ts, summary.ts, tab.ts)
 - `frontend/src/utils/formatters.ts` - Money, date, and name formatting
 - `frontend/src/utils/expenseCalculations.ts` - Frontend split calculations
-- `frontend/src/utils/tabShares.ts` - Live preview of tab shares; TS port of `backend/utils/tabs.py`
+- `frontend/src/utils/tabShares.ts` - Live preview of tab shares, plus the itemized per-person breakdown behind each total; TS port of `backend/utils/tabs.py`
 - `frontend/src/utils/venmo.ts` - Venmo deeplink builder for settle up (USD only)
 
 **Feature Components:**
@@ -81,6 +81,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `frontend/src/routes/TabBoardPage.tsx` - Host's view of a live tab (mobile list / desktop two-pane)
 - `frontend/src/routes/TabClaimPage.tsx` - `/t/:shareToken`; no auth, no shell
 - `frontend/src/components/tab/` - Receipt paper, item × person matrix, QR, progress
+- `frontend/src/components/tab/TabBreakdown.tsx` - What each person owes and why (their items, unclaimed share, tax and tip); used on the board, the close screen, the claim page and the expense detail modal
 
 **PWA Support:**
 - `frontend/public/manifest.json` - PWA manifest for installable app

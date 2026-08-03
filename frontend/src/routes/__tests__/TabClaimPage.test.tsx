@@ -301,3 +301,105 @@ describe('TabClaimPage with an account', () => {
         await waitFor(() => expect(publicTabsApi.join).toHaveBeenCalledTimes(1));
     });
 });
+
+describe('TabClaimPage running total', () => {
+    /** A bill with something shared, something spare, and tax and tip on top. */
+    const billed = (mine: number[]) => ({
+        name: 'Bar Sol',
+        currency: 'USD',
+        status: 'open' as const,
+        tax: 400,
+        tip: 600,
+        total: 5800,
+        items: [
+            {
+                id: 7,
+                description: 'Pizza margherita',
+                price: 2800,
+                added_manually: false,
+                claimed_by: mine.includes(7) ? [1, 2] : [1],
+            },
+            {
+                id: 8,
+                description: 'Negroni',
+                price: 1400,
+                added_manually: false,
+                claimed_by: mine.includes(8) ? [2] : [],
+            },
+            // Nobody's either way: spread across the table at close.
+            {
+                id: 9,
+                description: 'Olives',
+                price: 600,
+                added_manually: false,
+                claimed_by: [],
+            },
+        ],
+        participants: [
+            { id: 1, display_name: 'Vince Woo', user_id: null },
+            { id: 2, display_name: 'Maya', user_id: null },
+        ],
+    });
+
+    beforeEach(() => {
+        localStorage.clear();
+        auth = signedOut;
+        localStorage.setItem(
+            `sw.tab.${SHARE_TOKEN}`,
+            JSON.stringify({
+                claimToken: 'claim-token',
+                participantId: 2,
+                displayName: 'Maya',
+            })
+        );
+        vi.mocked(publicTabsApi.get).mockResolvedValue(billed([7]));
+    });
+
+    afterEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('keeps the working folded away until asked for', async () => {
+        renderPage();
+
+        const toggle = await screen.findByRole('button', { name: /Your bit/ });
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        expect(screen.queryByText('Your share of the tax')).not.toBeInTheDocument();
+    });
+
+    it('shows what the total is made of', async () => {
+        renderPage();
+        fireEvent.click(await screen.findByRole('button', { name: /Your bit/ }));
+
+        // Half the pizza and a third-of-nothing olive share — the Negroni is
+        // still going spare, so it is on the list as an orphan, not as theirs.
+        expect(screen.getByText('Your share of the tax')).toBeInTheDocument();
+        expect(screen.getByText('Your share of the tip')).toBeInTheDocument();
+        expect(screen.getByText(/Split 2 ways/)).toBeInTheDocument();
+        expect(screen.getAllByText(/Nobody claimed it/).length).toBeGreaterThan(0);
+    });
+
+    it('moves the total, and the working, as items are claimed', async () => {
+        vi.mocked(publicTabsApi.claim).mockResolvedValue(billed([7, 8]));
+        renderPage();
+
+        fireEvent.click(await screen.findByRole('button', { name: /Your bit/ }));
+        // Half the pizza, plus half of each orphan: 1400 + 700 + 300 = 2400.
+        // Both of them ordered the same, so the tax and tip halve too.
+        expect(screen.getByRole('button', { name: /Your bit/ })).toHaveTextContent(
+            '$29.00'
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: /Negroni/ }));
+
+        // The Negroni lands, the olives are the only orphan left, and the tax
+        // and tip tilt towards the bigger order: 3100 + 646.
+        await waitFor(() =>
+            expect(screen.getByRole('button', { name: /Your bit/ })).toHaveTextContent(
+                '$37.46'
+            )
+        );
+        // Twice over now: the line on the list, and the line in the working.
+        expect(screen.getAllByText('Negroni')).toHaveLength(2);
+    });
+});

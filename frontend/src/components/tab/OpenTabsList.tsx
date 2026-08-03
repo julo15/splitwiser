@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CaretRight } from '@phosphor-icons/react';
 import { Card, Money } from '../ui';
-import { claimedTotal, unclaimedTotal } from '../../utils/tabShares';
+import { claimedTotal, toShareItems, unclaimedTotal } from '../../utils/tabShares';
 import type { Tab } from '../../types/tab';
 
 export interface OpenTabsListProps {
@@ -23,11 +23,7 @@ const OpenTabsList: React.FC<OpenTabsListProps> = ({ tabs, size = 'md' }) => {
     return (
         <div className="flex flex-col gap-2">
             {tabs.map((tab) => {
-                const shareItems = tab.items.map((item) => ({
-                    id: item.id,
-                    price: item.price,
-                    claimedBy: item.claimed_by,
-                }));
+                const shareItems = toShareItems(tab.items);
                 const outstanding = unclaimedTotal(shareItems);
                 const spoken = claimedTotal(shareItems);
                 const openTab = () => navigate(`/tabs/${tab.id}`);

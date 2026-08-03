@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, UsersThree } from '@phosphor-icons/react';
 import { Avatar, Button, Card, Money } from '../components/ui';
+import TabBreakdown from '../components/tab/TabBreakdown';
 import { useAuth } from '../AuthContext';
 import { useAppData } from '../contexts/AppDataContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { tabsApi } from '../services/api';
-import { computeTabShares, unclaimedTotal } from '../utils/tabShares';
+import { toShareItems, unclaimedTotal } from '../utils/tabShares';
 import type { Tab } from '../types/tab';
 
 /**
@@ -49,27 +50,12 @@ const TabClosePage: React.FC = () => {
         };
     }, [id]);
 
-    const shareItems = useMemo(
-        () =>
-            (tab?.items ?? []).map((item) => ({
-                id: item.id,
-                price: item.price,
-                claimedBy: item.claimed_by,
-            })),
-        [tab]
-    );
+    const shareItems = useMemo(() => toShareItems(tab?.items ?? []), [tab]);
 
-    const shares = useMemo(
-        () =>
-            tab
-                ? computeTabShares(
-                      shareItems,
-                      tab.participants.map((p) => p.id),
-                      tab.tax,
-                      tab.tip
-                  )
-                : {},
-        [tab, shareItems]
+    /** The viewer's own seat, so their row in the breakdown reads "You". */
+    const me = useMemo(
+        () => (tab?.participants ?? []).find((p) => p.user_id === user?.id) ?? null,
+        [tab, user?.id]
     );
 
     const orphans = (tab?.items ?? []).filter((i) => i.claimed_by.length === 0);
@@ -116,8 +102,6 @@ const TabClosePage: React.FC = () => {
     }
 
     const payer = tab.participants.find((p) => p.id === payerId) ?? null;
-    const payerShare = payer ? (shares[payer.id] ?? 0) : 0;
-    const billTotal = Object.values(shares).reduce((sum, value) => sum + value, 0);
 
     return (
         <>
@@ -219,57 +203,21 @@ const TabClosePage: React.FC = () => {
                               }`
                             : 'Everyone owes'}
                     </div>
-                    <Card radius="lg" className="overflow-hidden">
-                        {tab.participants.map((participant, index) => {
-                            const owed = shares[participant.id] ?? 0;
-                            const isPayer = participant.id === payerId;
-                            const isMe = participant.user_id === user?.id;
-                            return (
-                                <div
-                                    key={participant.id}
-                                    className={`flex items-center gap-[11px] px-[15px] py-3 ${
-                                        index < tab.participants.length - 1
-                                            ? 'border-b border-sw-line'
-                                            : ''
-                                    }`}
-                                >
-                                    <Avatar
-                                        name={participant.display_name}
-                                        size={30}
-                                        variant={isMe ? 'accent' : 'neutral'}
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-sm truncate">
-                                            {isMe ? 'You' : participant.display_name}
-                                        </div>
-                                        <div className="text-[11.5px] text-sw-dim truncate">
-                                            {isPayer
-                                                ? 'Paid the bill'
-                                                : participant.user_id !== null
-                                                  ? 'Splitwiser account'
-                                                  : 'Guest'}
-                                        </div>
-                                    </div>
-                                    {isPayer ? (
-                                        <Money
-                                            // What the payer is up: the bill less their own share.
-                                            amount={billTotal - payerShare}
-                                            currency={tab.currency}
-                                            sign="always"
-                                            tone="positive"
-                                            className="text-[15px] font-medium"
-                                        />
-                                    ) : (
-                                        <Money
-                                            amount={owed}
-                                            currency={tab.currency}
-                                            className="text-[15px] font-medium"
-                                        />
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </Card>
+                    {/*
+                      * Every row opens onto the lines behind it. This is the
+                      * last screen before the money becomes real balances, so
+                      * it is the last chance to notice that someone has been
+                      * charged for a bottle they never claimed.
+                      */}
+                    <TabBreakdown
+                        items={tab.items}
+                        participants={tab.participants}
+                        currency={tab.currency}
+                        tax={tab.tax}
+                        tip={tab.tip}
+                        meId={me?.id ?? null}
+                        payerId={payerId}
+                    />
                 </div>
 
                 <div className="flex items-start gap-2.5 px-3 py-3 rounded-sw-card shadow-[inset_0_0_0_1px_var(--sw-line)]">
