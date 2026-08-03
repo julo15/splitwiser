@@ -325,8 +325,7 @@ const TabClaimPage: React.FC = () => {
                         </p>
                     ) : (
                         <p className="text-[11.5px] text-sw-dim text-center">
-                            No account needed. You can make one later and we'll attach
-                            this.
+                            No account needed — just this bill, just once.
                         </p>
                     )}
                 </form>

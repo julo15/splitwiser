@@ -270,3 +270,10 @@ with its claims. Runs from `start.sh`; idempotent, and supports `--dry-run`.
   often have no account, so there is no address to reach them at.
 - **Retroactive group promotion.** Offering to turn recurring tab participants
   into a real group needs recurrence data across closed tabs.
+- **Retroactive account linking.** Someone who claims anonymously and signs up
+  a week later does not get their old tabs; the account starts counting from
+  the next one. Deliberate, not a gap — a tab is ephemeral, and reaching back
+  into settled bills to reassign guest lines would rewrite balances other
+  people have already acted on. Signing in mid-tab is a different thing and is
+  supported: the seat is adopted from the claim token this browser is holding
+  (see *Signed-in claimers*), so nothing settled is disturbed.
