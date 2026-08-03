@@ -1042,6 +1042,78 @@ class TestClosedTabIsReachableFromItsExpense:
         assert client.get(f"/tabs/{tab['id']}", headers=mallory).status_code == 404
 
 
+class TestDeletingTheExpenseATabResolvedInto:
+    """
+    Deleting the expense is the only way to get rid of a tab, and it has to
+    take the tab's claim on that expense id with it: SQLite hands a freed
+    rowid straight back to the next insert, so a tab left pointing at a
+    deleted expense ends up pointing at somebody else's.
+    """
+
+    def _close(self, client, headers, **over):
+        tab = make_tab(client, headers, **over)
+        closed = client.post(f"/tabs/{tab['id']}/close", json={}, headers=headers)
+        assert closed.status_code == 200, closed.text
+        return tab, closed.json()["expense_id"]
+
+    def test_deleting_the_expense_detaches_the_tab(self, client, db_session):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab, expense_id = self._close(client, headers)
+
+        assert (
+            client.delete(f"/expenses/{expense_id}", headers=headers).status_code == 200
+        )
+
+        row = db_session.query(models.Tab).filter(models.Tab.id == tab["id"]).first()
+        assert row.expense_id is None
+        # Detached, not reopened: the claims were already spent.
+        assert row.status == "closed"
+
+    def test_a_deleted_tab_does_not_haunt_the_next_expense(self, client):
+        """The reported bug: a new tab's expense opened the tab before it."""
+        headers = register(client, "vince@example.com", "Vince Woo")
+        _old_tab, old_expense_id = self._close(client, headers, name="Bar Sol")
+        assert (
+            client.delete(f"/expenses/{old_expense_id}", headers=headers).status_code
+            == 200
+        )
+
+        new_tab, new_expense_id = self._close(client, headers, name="Taberna Real")
+        # The freed rowid comes back — that is what made this reachable at all.
+        assert new_expense_id == old_expense_id
+
+        detail = client.get(f"/expenses/{new_expense_id}", headers=headers).json()
+        assert detail["tab_id"] == new_tab["id"]
+
+    def test_an_unrelated_expense_does_not_inherit_a_deleted_tab(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        me = client.get("/users/me", headers=headers).json()["id"]
+        _tab, expense_id = self._close(client, headers)
+        assert (
+            client.delete(f"/expenses/{expense_id}", headers=headers).status_code == 200
+        )
+
+        created = client.post(
+            "/expenses/",
+            json={
+                "description": "Coffee",
+                "amount": 500,
+                "currency": "USD",
+                "date": str(datetime.utcnow().date()),
+                "payer_id": me,
+                "group_id": None,
+                "split_type": "EQUAL",
+                "splits": [{"user_id": me, "amount_owed": 500, "is_guest": False}],
+            },
+            headers=headers,
+        )
+        assert created.status_code == 200, created.text
+        assert created.json()["id"] == expense_id
+
+        detail = client.get(f"/expenses/{expense_id}", headers=headers).json()
+        assert detail["tab_id"] is None
+
+
 class TestClaimUniqueness:
     def test_the_schema_refuses_a_duplicate_claim(self, client, db_session):
         """

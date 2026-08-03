@@ -3,6 +3,7 @@ from pathlib import Path
 
 from migrations.add_tab_participant_name_uniqueness import migrate as migrate_tab_names
 from migrations.add_venmo_username import run_migration
+from migrations.detach_tabs_from_deleted_expenses import migrate as detach_tabs
 
 
 def _tab_participants_db(path, rows):
@@ -150,5 +151,97 @@ def test_startup_runs_tab_name_migration():
 
     assert (
         'python migrations/add_tab_participant_name_uniqueness.py'
+        ' --db-path "$DATABASE_PATH"' in start_script.read_text()
+    )
+
+
+def _tabs_and_expenses_db(path, tabs, expenses):
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE tabs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name VARCHAR NOT NULL,
+                created_by_id INTEGER NOT NULL,
+                expense_id INTEGER
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE expenses (
+                id INTEGER PRIMARY KEY,
+                group_id INTEGER,
+                created_by_id INTEGER
+            )
+            """
+        )
+        connection.executemany(
+            "INSERT INTO tabs (id, name, created_by_id, expense_id)"
+            " VALUES (?, ?, ?, ?)",
+            tabs,
+        )
+        connection.executemany(
+            "INSERT INTO expenses (id, group_id, created_by_id) VALUES (?, ?, ?)",
+            expenses,
+        )
+
+
+def test_detach_migration_clears_only_the_links_that_cannot_be_real(tmp_path):
+    db_path = tmp_path / "splitwiser.sqlite3"
+    _tabs_and_expenses_db(
+        db_path,
+        tabs=[
+            # The reported bug: expense 10 was deleted, and the rowid came back
+            # for the next tab's close. Two tabs now claim it; the later wins.
+            (1, "Bar Sol", 7, 10),
+            (2, "Taberna Real", 7, 10),
+            # A tab whose expense was deleted outright.
+            (3, "Cervejaria", 7, 11),
+            # A reused rowid that went to a group expense.
+            (4, "Pastelaria", 7, 12),
+            # ...and to another account's expense.
+            (5, "Adega", 7, 13),
+            # An honest link, and an open tab that has no expense at all.
+            (6, "Marisqueira", 7, 14),
+            (7, "Still going", 7, None),
+        ],
+        expenses=[(10, None, 7), (12, 3, 7), (13, None, 8), (14, None, 7)],
+    )
+
+    assert detach_tabs(str(db_path)) == 0
+    assert detach_tabs(str(db_path)) == 0
+
+    with sqlite3.connect(db_path) as connection:
+        links = dict(connection.execute("SELECT id, expense_id FROM tabs"))
+
+    assert links == {1: None, 2: 10, 3: None, 4: None, 5: None, 6: 14, 7: None}
+
+
+def test_detach_migration_on_a_database_without_tabs(tmp_path):
+    db_path = tmp_path / "splitwiser.sqlite3"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("CREATE TABLE users (id INTEGER PRIMARY KEY)")
+
+    assert detach_tabs(str(db_path)) == 0
+
+
+def test_detach_migration_dry_run_writes_nothing(tmp_path):
+    db_path = tmp_path / "splitwiser.sqlite3"
+    _tabs_and_expenses_db(
+        db_path, tabs=[(1, "Bar Sol", 7, 10)], expenses=[]
+    )
+
+    assert detach_tabs(str(db_path), dry_run=True) == 0
+
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute("SELECT expense_id FROM tabs").fetchone()[0] == 10
+
+
+def test_startup_runs_detach_migration():
+    start_script = Path(__file__).parents[2] / "start.sh"
+
+    assert (
+        'python migrations/detach_tabs_from_deleted_expenses.py'
         ' --db-path "$DATABASE_PATH"' in start_script.read_text()
     )

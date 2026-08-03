@@ -524,12 +524,19 @@ def get_expense(
     # stranger with 404 precisely so it never confirms a tab exists, so
     # handing anyone else the id would both leak that and offer a link that
     # dead-ends. Everyone else sees the expense on its own terms.
+    #
+    # Newest first: deleting an expense detaches the tabs that pointed at it
+    # (see delete_expense), but a database written before that fix can still
+    # hold an older tab claiming this id, and the tab that closed most
+    # recently is the one that actually created this expense. The boot-time
+    # migration clears the rest.
     tab = (
         db.query(models.Tab)
         .filter(
             models.Tab.expense_id == expense_id,
             models.Tab.created_by_id == current_user.id,
         )
+        .order_by(models.Tab.id.desc())
         .first()
     )
 
@@ -876,6 +883,17 @@ def delete_expense(
 
     # Delete expense guests
     db.query(models.ExpenseGuest).filter(models.ExpenseGuest.expense_id == expense_id).delete()
+
+    # Let go of the expense id on the way out. Deleting the expense is the only
+    # way to be rid of a closed tab, and SQLite hands a freed rowid straight
+    # back to the next insert — so a tab left pointing here would end up
+    # pointing at an unrelated expense, and GET /expenses/{id} would offer its
+    # owner a way back to a tab that has nothing to do with the bill in front
+    # of them. The tab stays closed rather than reopening: its claims were
+    # already spent, and reopening would put a writable link back in circulation.
+    db.query(models.Tab).filter(models.Tab.expense_id == expense_id).update(
+        {models.Tab.expense_id: None}, synchronize_session=False
+    )
 
     # Delete receipt image if exists
     if expense.receipt_image_path:
