@@ -206,6 +206,17 @@ precisely so it never confirms a tab exists, so `tab_id` is filtered on
 Anonymous claimers never had an account to read the expense with in the first
 place.
 
+Deleting that expense is the only way to be rid of a tab, and it clears
+`Tab.expense_id` on the way out. It has to: the id is a SQLite rowid, freed the
+moment the row goes and handed straight to the next insert, so a tab left
+holding one ends up answering for an unrelated expense — its owner offered a
+trip back to a bill they had already thrown away, with the wrong people on it.
+The tab stays `closed` rather than reopening, since its claims are spent and
+reopening would put a writable link back in circulation; it is simply
+unreachable, which is what deleting it meant.
+`migrations/detach_tabs_from_deleted_expenses.py` clears the links written
+before this held, and runs on every boot.
+
 ## API Endpoints
 
 ### Owner (authenticated)

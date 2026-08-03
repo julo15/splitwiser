@@ -31,6 +31,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Phantom payer on an open tab**: The first guest at the table was labelled as
   having paid the bill, because an unset payer and an account-less claimer were
   both null and matched each other.
+- **A deleted tab haunting the next one**: Deleting the expense a tab closed
+  into — the only way to be rid of a tab — left the tab pointing at that
+  expense's id, and SQLite hands a freed id straight back to the next insert.
+  The next expense was born wearing the dead tab's link, so its detail view
+  showed that tab's items and people, and *Open the tab* led to the old bill.
+  Deleting an expense now releases the link, and a boot-time migration clears
+  the ones already recorded.
 
 ## [2.0.0] - 2026-01-01
 
