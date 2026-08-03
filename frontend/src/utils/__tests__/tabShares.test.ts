@@ -6,17 +6,26 @@ import { describe, it, expect } from 'vitest';
 import {
     claimedTotal,
     computeItemShares,
+    computeTabBreakdowns,
     computeTabShares,
     distributeProportionally,
+    payerParticipantId,
     splitEvenly,
+    toShareItems,
     unclaimedTotal,
 } from '../tabShares';
 import type { TabShareItem } from '../tabShares';
 
-const item = (id: number, price: number, claimedBy: number[] = []): TabShareItem => ({
+const item = (
+    id: number,
+    price: number,
+    claimedBy: number[] = [],
+    description = `Item ${id}`
+): TabShareItem => ({
     id,
     price,
     claimedBy,
+    description,
 });
 
 describe('splitEvenly', () => {
@@ -157,6 +166,184 @@ describe('computeTabShares', () => {
             50
         );
         expect(Object.values(shares).reduce((a, b) => a + b, 0)).toBe(1650);
+    });
+});
+
+describe('toShareItems', () => {
+    it('renames the API shape without touching the numbers', () => {
+        expect(
+            toShareItems([
+                {
+                    id: 7,
+                    price: 2800,
+                    description: 'Pizza margherita',
+                    claimed_by: [10, 20],
+                },
+            ])
+        ).toEqual([
+            {
+                id: 7,
+                price: 2800,
+                description: 'Pizza margherita',
+                claimedBy: [10, 20],
+            },
+        ]);
+    });
+});
+
+describe('computeTabBreakdowns', () => {
+    it('agrees with computeTabShares, to the cent', () => {
+        const items = [
+            item(1, 2800, [10, 20]),
+            item(2, 3401, [20]),
+            item(3, 999, [30]),
+            item(4, 1200),
+        ];
+        const ids = [10, 20, 30];
+
+        const breakdowns = computeTabBreakdowns(items, ids, 1449, 3686);
+        const shares = computeTabShares(items, ids, 1449, 3686);
+
+        for (const id of ids) {
+            expect(breakdowns[id].total).toBe(shares[id]);
+        }
+    });
+
+    it('shows lines that add up to the person subtotal', () => {
+        const breakdowns = computeTabBreakdowns(
+            [item(1, 2800, [10, 20]), item(2, 3400, [20])],
+            [10, 20],
+            400,
+            600
+        );
+
+        for (const breakdown of Object.values(breakdowns)) {
+            const summed = breakdown.lines.reduce((sum, line) => sum + line.amount, 0);
+            expect(summed).toBe(breakdown.items);
+            expect(breakdown.items + breakdown.extras).toBe(breakdown.total);
+        }
+    });
+
+    it('splits a shared line and says how many ways', () => {
+        const breakdowns = computeTabBreakdowns(
+            [item(1, 2800, [10, 20], 'Pizza')],
+            [10, 20]
+        );
+
+        expect(breakdowns[10].lines).toEqual([
+            {
+                itemId: 1,
+                description: 'Pizza',
+                price: 2800,
+                amount: 1400,
+                splitCount: 2,
+                orphan: false,
+            },
+        ]);
+    });
+
+    it('marks a line nobody claimed on everyone it falls to', () => {
+        const breakdowns = computeTabBreakdowns([item(1, 900, [], 'Olives')], [10, 20, 30]);
+
+        for (const id of [10, 20, 30]) {
+            expect(breakdowns[id].lines).toHaveLength(1);
+            expect(breakdowns[id].lines[0]).toMatchObject({
+                description: 'Olives',
+                amount: 300,
+                splitCount: 3,
+                orphan: true,
+            });
+        }
+    });
+
+    it('leaves out a line the person had nothing to do with', () => {
+        const breakdowns = computeTabBreakdowns(
+            [item(1, 2800, [10]), item(2, 1000, [20])],
+            [10, 20]
+        );
+
+        expect(breakdowns[10].lines.map((line) => line.itemId)).toEqual([1]);
+        expect(breakdowns[20].lines.map((line) => line.itemId)).toEqual([2]);
+    });
+
+    it('reports tax and tip separately, summing to what the server charges', () => {
+        const items = [item(1, 3000, [10]), item(2, 1000, [20])];
+        const breakdowns = computeTabBreakdowns(items, [10, 20], 401, 799);
+        const shares = computeTabShares(items, [10, 20], 401, 799);
+
+        for (const id of [10, 20]) {
+            // The pair always reconstitutes the combined figure, which is the
+            // one the server distributes and records.
+            expect(breakdowns[id].tax + breakdowns[id].tip).toBe(breakdowns[id].extras);
+            expect(breakdowns[id].items + breakdowns[id].extras).toBe(shares[id]);
+        }
+
+        // And the whole thing still lands exactly on the bill.
+        const total = Object.values(breakdowns).reduce((sum, b) => sum + b.total, 0);
+        expect(total).toBe(3000 + 1000 + 401 + 799);
+    });
+
+    it('leaves the tip at zero when the bill has no tip', () => {
+        const breakdowns = computeTabBreakdowns(
+            [item(1, 3000, [10]), item(2, 1000, [20])],
+            [10, 20],
+            405,
+            0
+        );
+
+        for (const id of [10, 20]) {
+            expect(breakdowns[id].tip).toBe(0);
+            expect(breakdowns[id].tax).toBe(breakdowns[id].extras);
+        }
+    });
+
+    it('leaves the tax at zero when the bill has no tax', () => {
+        const breakdowns = computeTabBreakdowns(
+            [item(1, 3000, [10]), item(2, 1000, [20])],
+            [10, 20],
+            0,
+            405
+        );
+
+        for (const id of [10, 20]) {
+            expect(breakdowns[id].tax).toBe(0);
+            expect(breakdowns[id].tip).toBe(breakdowns[id].extras);
+        }
+    });
+
+    it('gives someone who claimed nothing an empty, zeroed breakdown', () => {
+        const breakdowns = computeTabBreakdowns([item(1, 2800, [10])], [10, 20], 200, 300);
+
+        expect(breakdowns[20].lines).toEqual([]);
+        expect(breakdowns[20].items).toBe(0);
+        expect(breakdowns[20].total).toBe(0);
+    });
+
+    it('handles no participants', () => {
+        expect(computeTabBreakdowns([item(1, 100)], [], 50, 50)).toEqual({});
+    });
+});
+
+describe('payerParticipantId', () => {
+    const table = [
+        { id: 1, user_id: 7 },
+        { id: 2, user_id: null },
+        { id: 3, user_id: 9 },
+    ];
+
+    it('finds the seat belonging to the paying account', () => {
+        expect(payerParticipantId(table, 9)).toBe(3);
+    });
+
+    it('names nobody while the tab is still open', () => {
+        // The bug: null payer matched the first anonymous seat, whose user_id
+        // is also null, and pinned "paid the bill" on a guest.
+        expect(payerParticipantId(table, null)).toBeNull();
+        expect(payerParticipantId(table, undefined)).toBeNull();
+    });
+
+    it('names nobody when the payer has left the table', () => {
+        expect(payerParticipantId(table, 99)).toBeNull();
     });
 });
 

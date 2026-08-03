@@ -550,6 +550,24 @@ export const tabsApi = {
         return response.json();
     },
 
+    // Seat somebody who is at the table but not on the link — the flat-phone
+    // case. A guest seat; the owner already speaks for it.
+    addParticipant: async (tabId: number, displayName: string) => {
+        const response = await apiFetch(`/tabs/${tabId}/participants`, {
+            method: 'POST',
+            body: JSON.stringify({ display_name: displayName }),
+        });
+        if (!response.ok) {
+            const body = await response.json().catch(() => ({}));
+            throw new Error(
+                typeof body.detail === 'string'
+                    ? body.detail
+                    : 'Could not add that person'
+            );
+        }
+        return response.json();
+    },
+
     // Claim as the signed-in participant. Distinct from publicTabsApi.claim:
     // identity comes from the session, not from a claim token.
     claimOwn: async (tabId: number, itemId: number, claimed: boolean) => {

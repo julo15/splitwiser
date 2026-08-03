@@ -158,6 +158,25 @@ close. The two test suites run the same cases so they cannot drift apart
 unnoticed (`backend/tests/test_tabs_math.py`,
 `frontend/src/utils/__tests__/tabShares.test.ts`).
 
+### Showing the working
+
+`computeTabBreakdowns` is the same computation with its intermediate steps
+kept: each person's lines, their item subtotal, their tax and tip, their total.
+`computeItemShares` and the breakdown both derive from one internal walk
+(`allocateLines`), so a person's lines always add up to the figure printed
+beside their name — the working can never contradict the total.
+
+Tax and tip are reported separately even though the server distributes them as
+a single figure. The combined share is computed first and the tax is carved out
+of it, rather than distributing each independently, so the two halves always
+add back to the cent that actually gets charged. With one of them zero the
+other takes the whole share exactly.
+
+`payerParticipantId` exists because both sides of "is this seat the payer?" are
+nullable and mean unrelated things: an open tab has no payer, and an anonymous
+claimer has no account. Comparing them directly labels the first guest at every
+open tab as having paid the bill.
+
 ## Closing
 
 Closing writes one ordinary direct expense on the existing `group_id IS NULL`
@@ -196,6 +215,11 @@ place.
 - `POST /tabs/{tab_id}/items` - add a line the scan missed
 - `DELETE /tabs/{tab_id}/items/{item_id}` - remove a line, dropping its claims.
   The UI only offers this for hand-added lines.
+- `POST /tabs/{tab_id}/participants` - seat somebody the owner is claiming on
+  behalf of. A guest seat: joining otherwise needs the link, which is no use to
+  the person at the table with a flat phone. Grants nothing the owner did not
+  already have, since they can already tick any seat. Same name rules as
+  joining, and a `409` on a collision either way round.
 - `POST /tabs/{tab_id}/items/{item_id}/claim` - claim as yourself. The host is a
   participant like anyone else, and their claim token is never handed out, so
   identity comes from the session. Open to any signed-in participant.
@@ -224,6 +248,8 @@ place.
 - `TabBoardPage.tsx` - the host's view. Picks a posture with `useIsDesktop`.
 - `TabClaimPage.tsx` - `/t/:shareToken`. No auth, no shell: the token is the
   only credential and most people opening it have no account.
+- `TabPassPage.tsx` - `/tabs/:tabId/pass`. Signed in, but no shell — see
+  *Passing the phone*.
 - `TabClosePage.tsx` - confirm who paid, see the final shares.
 
 **Components** (`src/components/tab/`)
@@ -232,6 +258,9 @@ place.
   rather than the scanned photo, since a photo cannot show which lines are
   still nobody's. Fixed to the light palette in both themes.
 - `TabMatrix.tsx` - every item against every person, with per-person totals
+- `TabBreakdown.tsx` - what each person owes and why: their lines, their share
+  of anything unclaimed, their tax and tip. Rows expand; the viewer's own opens
+  first. Exports `TabWorking`, the one-person half of it, for the claim screen.
 - `TabProgress.tsx` - how much of the bill is spoken for
 - `ClaimerStack.tsx` - overlapping avatars on a claimed line
 - `QrCode.tsx` - the share link as a QR. Everyone is at the same table, so a
@@ -240,13 +269,89 @@ place.
 ### Two postures
 
 **Mobile** sorts lines into "needs a home" and "sorted" — a phone can only show
-one axis at a time, so unclaimed lines lead.
+one axis at a time, so unclaimed lines lead. A segmented control switches the
+same space to what everyone owes; the answer to "what do I owe?" used to live
+behind *Close the tab*, a button that reads like a commitment.
 
 **Desktop** shows both axes at once: the receipt on the left, the item × person
 grid on the right. Hovering a row in the grid rings the same line on the paper.
 The per-person footer totals are what closing *right now* would record, so they
 include each person's share of the unclaimed lines; the outstanding amount is
-called out separately.
+called out separately. The breakdown sits below the grid, so the totals and
+their working are on one screen.
+
+## Passing the phone
+
+For the table where the others have no phone on them. The host's device goes
+round and each person claims their own lines on it — `/tabs/:tabId/pass`.
+
+It is **the claim screen with a seat picker on top**, not the board with a
+person dropdown. The board is the host's surface: share link, close button, and
+the whole signed-in app in a tab bar underneath. So the route is signed in like
+any owner surface but sits *outside* `ShellRoute`, next to the public claim
+page. That placement is the design, not a routing detail.
+
+It is not a kiosk and does not pretend to be — a browser always has a back
+gesture. What the shell-less route removes is every path that *invites* you
+into the account while somebody else is holding the phone.
+
+**The loop.** Picker → one person's turn → *Done — pass it on* → picker.
+
+- The picker leads with the **orphan count**, not a roster: an unclaimed line
+  is what gets spread across the whole table at close, so that is the number
+  that says whether you are finished. Mixed tables are the normal case, so
+  whoever already used the link shows their count and gets skipped.
+- A turn opens with the name in a tinted band. The one failure mode here is
+  ticking items onto the wrong person, so identity is something you cannot
+  miss rather than a control you have to read. The host takes a turn like
+  anyone else and is addressed as "you".
+- `+ Someone else` seats a name inline and drops straight into their list.
+  Half the table never opened the link, so it cannot be a detour.
+
+**Idle returns to the picker, never out.** After `IDLE_MS` (45s) a quiet turn
+falls back to "who's got the phone?". That is the real mis-attribution risk:
+the phone goes face-up when Maya finishes and the next person picks it up.
+
+**Polling stops mid-turn.** The picker refreshes every 5s because somebody may
+still be claiming from their own phone; a poll landing between taps would move
+the list under the person using it.
+
+**Getting in and out.** Sending the link, showing a QR and passing the phone
+are three mechanisms for one question — how do everyone's picks get in? — so
+they share a sheet behind *Get picks*. It costs one tap on the commonest path.
+The exit is deliberately **not** called "Done": that is what ends a turn, one
+screen over, and somebody finishing their items must not drop the host back
+into their own account by reflex. It confirms through `AlertDialog` with
+`destructive={false}` — nothing is lost by stopping, and a red warning would
+say otherwise.
+
+Nothing is ever mid-edit: claims save on every tap, as on the claim link, so
+the phone can come back at any moment with nothing pending.
+
+**Not built.** Handing a seat over. A hand-seated person's claim token is never
+returned, so they cannot later claim from their own phone — acceptable while
+the premise is that they have not got one, and a per-seat handoff link is a
+separate feature.
+
+### Where the breakdown appears
+
+The same component on four surfaces, so a person's number is explained wherever
+they meet it:
+
+- **The board**, live, for the host — mobile behind the toggle, desktop under
+  the grid.
+- **The close screen**, where every row opens onto its lines. It is the last
+  look before the money becomes real balances, so it is the last chance to
+  notice somebody was charged for a bottle they never claimed.
+- **The claim screen**, for the one person reading it: *Your bit* expands into
+  their own lines, their share of anything spare, and the tax and tip that
+  arrived without ever being ticked. Recomputed on every tap.
+- **The expense detail modal**, for a closed tab. Closing writes no expense
+  items — the item detail only ever existed on the tab — so the recorded splits
+  flatten to one figure per person and the modal reads the tab back in to
+  explain them. `Tab.expense_id` is only exposed to the tab's owner, so only
+  they can make that request. The recorded *Split breakdown* stays below it:
+  the expense remains editable after the fact, and it is the record.
 
 The board polls every 5 seconds while the tab is open, because claims arrive
 from other people's phones.

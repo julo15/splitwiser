@@ -9,6 +9,16 @@ interface AlertDialogProps {
     title: string;
     message: string;
     type?: 'alert' | 'confirm' | 'success' | 'error';
+    /**
+     * Whether saying yes destroys something. Only read for 'confirm'.
+     *
+     * Defaults true because nearly every confirm here guards a deletion. A
+     * question that merely interrupts — stopping the pass-around, where
+     * everything claimed is already saved — sets it false and gets the neutral
+     * mark and an ordinary primary action, rather than warning about a loss
+     * that is not going to happen.
+     */
+    destructive?: boolean;
     confirmText?: string;
     cancelText?: string;
 }
@@ -17,8 +27,9 @@ interface AlertDialogProps {
  * The mark above the title. Tinted from the soft ramps rather than filled — the
  * same treatment Notice gives a result stated inline.
  *
- * 'confirm' has no ramp of its own: a question is not an outcome, so it borrows
- * the negative one, since every confirm in this app guards a destructive step.
+ * 'confirm' has no ramp of its own: a question is not an outcome, so a
+ * destructive one borrows the negative ramp. A confirm that destroys nothing
+ * takes the neutral 'alert' mark instead — see `destructive`.
  */
 const MARK = {
     success: { tone: 'bg-sw-pos-soft text-sw-pos', Icon: CheckCircle },
@@ -34,6 +45,7 @@ const AlertDialog: React.FC<AlertDialogProps> = ({
     title,
     message,
     type = 'alert',
+    destructive = true,
     confirmText = 'OK',
     cancelText = 'Cancel'
 }) => {
@@ -46,7 +58,9 @@ const AlertDialog: React.FC<AlertDialogProps> = ({
         onClose();
     };
 
-    const { tone, Icon } = MARK[type];
+    const isConfirm = type === 'confirm';
+    const warns = isConfirm && destructive;
+    const { tone, Icon } = warns || !isConfirm ? MARK[type] : MARK.alert;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 font-sans">
@@ -83,7 +97,7 @@ const AlertDialog: React.FC<AlertDialogProps> = ({
 
                     {/* Buttons */}
                     <div className="mt-6 flex gap-3">
-                        {type === 'confirm' && (
+                        {isConfirm && (
                             <Button
                                 variant="secondary"
                                 onClick={onClose}
@@ -93,10 +107,10 @@ const AlertDialog: React.FC<AlertDialogProps> = ({
                             </Button>
                         )}
                         <Button
-                            variant={type === 'confirm' ? 'secondary' : 'primary'}
+                            variant={warns ? 'secondary' : 'primary'}
                             onClick={handleConfirm}
                             className={`flex-1 py-3 min-h-[44px] ${
-                                type === 'confirm' ? 'text-sw-neg border-sw-neg' : ''
+                                warns ? 'text-sw-neg border-sw-neg' : ''
                             }`}
                         >
                             {confirmText}

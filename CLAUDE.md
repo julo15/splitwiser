@@ -64,7 +64,7 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `frontend/src/types/` - TypeScript definitions (group.ts, expense.ts, balance.ts, friend.ts, summary.ts, tab.ts)
 - `frontend/src/utils/formatters.ts` - Money, date, and name formatting
 - `frontend/src/utils/expenseCalculations.ts` - Frontend split calculations
-- `frontend/src/utils/tabShares.ts` - Live preview of tab shares; TS port of `backend/utils/tabs.py`
+- `frontend/src/utils/tabShares.ts` - Live preview of tab shares, plus the itemized per-person breakdown behind each total; TS port of `backend/utils/tabs.py`
 - `frontend/src/utils/venmo.ts` - Venmo deeplink builder for settle up (USD only)
 
 **Feature Components:**
@@ -80,7 +80,9 @@ Splitwiser is a Splitwise clone for expense splitting among friends and groups. 
 - `frontend/src/components/summary/SpendingTrendChart.tsx` - Stacked bar chart (visx)
 - `frontend/src/routes/TabBoardPage.tsx` - Host's view of a live tab (mobile list / desktop two-pane)
 - `frontend/src/routes/TabClaimPage.tsx` - `/t/:shareToken`; no auth, no shell
+- `frontend/src/routes/TabPassPage.tsx` - Pass-the-phone claiming for a table with no other devices; signed in but outside the shell
 - `frontend/src/components/tab/` - Receipt paper, item × person matrix, QR, progress
+- `frontend/src/components/tab/TabBreakdown.tsx` - What each person owes and why (their items, unclaimed share, tax and tip); used on the board, the close screen, the claim page and the expense detail modal
 
 **PWA Support:**
 - `frontend/public/manifest.json` - PWA manifest for installable app
@@ -275,6 +277,7 @@ A tab is a one-off bill people claim their own items from via a link — no grou
 Owner (authenticated):
 - `POST /tabs`, `GET /tabs`, `GET /tabs/{tab_id}` - Open, list, read
 - `POST /tabs/{tab_id}/items`, `DELETE /tabs/{tab_id}/items/{item_id}` - Lines the scan missed; deleting drops the line's claims
+- `POST /tabs/{tab_id}/participants` - Seat somebody with no phone of their own; a guest seat, same name rules as joining
 - `POST /tabs/{tab_id}/items/{item_id}/claim` - Claim as yourself (any signed-in participant)
 - `POST /tabs/{tab_id}/items/{item_id}/claim/{participant_id}` - Set anyone's claim (owner only)
 - `POST /tabs/{tab_id}/revoke` - Kill the link without closing

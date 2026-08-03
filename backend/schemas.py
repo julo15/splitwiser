@@ -687,6 +687,11 @@ class PublicTabOut(BaseModel):
     participants: List[TabParticipantOut] = Field(default_factory=list)
 
 
+class TabParticipantCreate(BaseModel):
+    """Owner seating somebody who is at the table but not on the link."""
+    display_name: str = Field(min_length=1, max_length=60)
+
+
 class TabJoinRequest(BaseModel):
     # Optional only for a signed-in caller, whose account supplies the name.
     display_name: Optional[str] = Field(default=None, max_length=60)

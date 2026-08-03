@@ -362,6 +362,58 @@ def add_tab_item(
     return _tab_out(db, tab)
 
 
+@router.post("/tabs/{tab_id}/participants", response_model=schemas.TabOut)
+def add_tab_participant(
+    tab_id: int,
+    payload: schemas.TabParticipantCreate,
+    current_user: Annotated[models.User, Depends(get_current_user)],
+    db: Session = Depends(get_db),
+):
+    """
+    Seat somebody the owner is claiming on behalf of.
+
+    Joining is otherwise the only way a participant comes into being, and it
+    needs the link — which is no use for the person sitting at the table with a
+    flat phone. The owner can already tick any seat and decide who paid, so
+    creating one grants nothing they did not have; what it removes is the need
+    for everybody to hold a device before their order can be recorded.
+
+    The seat is a guest seat. Passing the owner's own account here would be
+    wrong twice over: they already have a seat, and `ux_tab_participants_tab_user`
+    would refuse the second one.
+
+    A claim token is generated and never returned. Nobody is holding it, so
+    this person cannot later claim from their own phone — the owner has the
+    device that speaks for them. Handing a seat over is a separate feature.
+    """
+    tab = _load_tab_for_owner(db, tab_id, current_user.id)
+    if tab.status != "open":
+        raise HTTPException(status_code=409, detail="This tab is already closed")
+
+    name = _clean_name(payload.display_name)
+    if not name:
+        raise HTTPException(status_code=400, detail="Please give a name")
+    if _name_is_taken(db, tab.id, name):
+        raise HTTPException(status_code=409, detail=NAME_TAKEN_DETAIL)
+
+    db.add(
+        models.TabParticipant(
+            tab_id=tab.id,
+            display_name=name,
+            user_id=None,
+            claim_token=secrets.token_urlsafe(32),
+        )
+    )
+    try:
+        db.commit()
+    except IntegrityError:
+        # Somebody opened the link under this name in the same moment.
+        db.rollback()
+        raise HTTPException(status_code=409, detail=NAME_TAKEN_DETAIL) from None
+
+    return _tab_out(db, tab)
+
+
 @router.delete("/tabs/{tab_id}/items/{item_id}", response_model=schemas.TabOut)
 def delete_tab_item(
     tab_id: int,

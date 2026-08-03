@@ -18,6 +18,7 @@ import SettleUpPage from './routes/SettleUpPage';
 import TabBoardPage from './routes/TabBoardPage';
 import TabClosePage from './routes/TabClosePage';
 import TabClaimPage from './routes/TabClaimPage';
+import TabPassPage from './routes/TabPassPage';
 import PublicGroupPage from './routes/PublicGroupPage';
 import PeoplePage from './routes/PeoplePage';
 import ActivityPage from './routes/ActivityPage';
@@ -93,6 +94,17 @@ function App() {
                 * account at all.
                 */}
               <Route path="/t/:shareToken" element={<TabClaimPage />} />
+
+              {/*
+                * Passing the host's phone round the table. Signed in like any
+                * owner surface, but deliberately outside the shell: the device
+                * is in somebody else's hands, and a tab bar would be an
+                * invitation into the account.
+                */}
+              <Route
+                path="/tabs/:tabId/pass"
+                element={<ProtectedRoute element={<TabPassPage />} />}
+              />
 
               {/* Public share link */}
               <Route path="/share/:shareLinkId" element={<PublicGroupPage />} />
