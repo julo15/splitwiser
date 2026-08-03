@@ -688,7 +688,12 @@ class PublicTabOut(BaseModel):
 
 
 class TabJoinRequest(BaseModel):
-    display_name: str = Field(min_length=1, max_length=60)
+    # Optional only for a signed-in caller, whose account supplies the name.
+    display_name: Optional[str] = Field(default=None, max_length=60)
+    # Sent by someone who claimed anonymously and has since signed in: it binds
+    # the account to the row they have been claiming from, so their picks come
+    # with them instead of being left behind under a guest.
+    claim_token: Optional[str] = Field(default=None, max_length=128)
 
 
 class TabJoinResponse(BaseModel):

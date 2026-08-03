@@ -39,7 +39,7 @@ from sqlalchemy.orm import Session
 import models
 import schemas
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, get_optional_current_user
 from utils.rate_limiter import RateLimiter
 from utils.tabs import compute_tab_shares
 
@@ -129,6 +129,62 @@ def _participant_for_claim_token(
     if not participant:
         raise HTTPException(status_code=403, detail="Join the tab first")
     return participant
+
+
+def _account_name(user: Optional[models.User]) -> str:
+    """What to call a signed-in claimer who did not type a name."""
+    if not user:
+        return ""
+    # The local part of the email is a poor label, but it beats "You" on a
+    # board where it sits next to four real names.
+    return _clean_name(user.full_name or "") or user.email.split("@")[0]
+
+
+def _adopt_anonymous_seat(
+    db: Session,
+    tab: models.Tab,
+    claim_token: Optional[str],
+    user: models.User,
+) -> Optional[models.TabParticipant]:
+    """
+    Bind a signed-in account to the anonymous seat the caller is claiming from.
+
+    Someone claims half the bill, then signs in — on this page or on the offer
+    to make an account. Seating them again would leave those claims on a guest
+    row, so the seat they are already using becomes theirs instead. Returns
+    None when there is nothing to adopt, leaving the caller to seat them fresh.
+    """
+    if not claim_token:
+        return None
+    seat = (
+        db.query(models.TabParticipant)
+        .filter(
+            models.TabParticipant.claim_token == claim_token,
+            models.TabParticipant.tab_id == tab.id,
+        )
+        .first()
+    )
+    # A seat already spoken for by a different account is not theirs to take.
+    if not seat or seat.user_id is not None:
+        return None
+    seat.user_id = user.id
+    db.commit()
+    db.refresh(seat)
+    return seat
+
+
+def _join_response(
+    db: Session, tab: models.Tab, participant: models.TabParticipant
+) -> "schemas.TabJoinResponse":
+    return schemas.TabJoinResponse(
+        participant=schemas.TabParticipantOut(
+            id=participant.id,
+            display_name=participant.display_name,
+            user_id=participant.user_id,
+        ),
+        claim_token=participant.claim_token,
+        tab=_public_tab_out(db, tab),
+    )
 
 
 def _claims_by_item(db: Session, tab_id: int) -> dict:
@@ -631,25 +687,60 @@ def read_public_tab(share_token: str, db: Session = Depends(get_db)):
 def join_public_tab(
     share_token: str,
     payload: schemas.TabJoinRequest,
+    current_user: Annotated[
+        Optional[models.User], Depends(get_optional_current_user)
+    ] = None,
     db: Session = Depends(get_db),
 ):
     """
-    Join with a first name and nothing else.
+    Take a seat at the table. Anonymously, or as your account.
 
-    Returns a claim token that identifies this person on later requests. There
-    is no account, so that token is the only handle they have on their claims.
+    Returns a claim token that identifies this person on later requests. For
+    someone with no account it is the only handle they have on their claims.
 
-    Seating someone is a one-time act. A caller who already holds a claim token
-    must rename instead — see `rename_public_tab_participant`. Joining again
-    under a name already at the table is refused rather than merged: the token
-    is the credential, and matching on name would let anyone with the link
-    claim to be somebody who is already here.
+    Signing in matters here: an account on the participant is what turns their
+    share into an `ExpenseSplit` at close, so the bill lands in their balances
+    and on the payer's person page, rather than an `ExpenseGuest` the payer has
+    to chase in person. So a signed-in caller is recognised three ways:
+
+      * already seated on this tab — the host opening their own link, or anyone
+        coming back on a second device — is handed back the seat they have,
+        since the account, not the browser, says who they are;
+      * holding the claim token of an anonymous seat — they claimed first and
+        signed in afterwards — has the account bound to that seat, keeping
+        every line they already ticked;
+      * otherwise seated fresh, under the name on their account.
+
+    Seating is otherwise a one-time act: a caller who already holds a claim
+    token renames rather than joining again (see
+    `rename_public_tab_participant`), and joining under a name already at the
+    table is refused rather than merged — matching on name alone would let
+    anyone with the link claim to be somebody who is already here.
     """
     tab = _load_tab_by_token(db, share_token)
     if tab.status != "open":
         raise HTTPException(status_code=409, detail="This tab is closed")
 
-    name = _clean_name(payload.display_name)
+    if current_user:
+        seated = (
+            db.query(models.TabParticipant)
+            .filter(
+                models.TabParticipant.tab_id == tab.id,
+                models.TabParticipant.user_id == current_user.id,
+            )
+            .first()
+        )
+        if seated:
+            # Handing back their own claim token is not a leak: they proved the
+            # account it belongs to, and without it they could not amend the
+            # claims they came back to amend.
+            return _join_response(db, tab, seated)
+
+        adopted = _adopt_anonymous_seat(db, tab, payload.claim_token, current_user)
+        if adopted:
+            return _join_response(db, tab, adopted)
+
+    name = _clean_name(payload.display_name or _account_name(current_user))
     if not name:
         raise HTTPException(status_code=400, detail="Please give a name")
     if _name_is_taken(db, tab.id, name):
@@ -658,7 +749,7 @@ def join_public_tab(
     participant = models.TabParticipant(
         tab_id=tab.id,
         display_name=name,
-        user_id=None,
+        user_id=current_user.id if current_user else None,
         claim_token=secrets.token_urlsafe(32),
     )
     db.add(participant)
@@ -670,15 +761,7 @@ def join_public_tab(
         raise HTTPException(status_code=409, detail=NAME_TAKEN_DETAIL) from None
     db.refresh(participant)
 
-    return schemas.TabJoinResponse(
-        participant=schemas.TabParticipantOut(
-            id=participant.id,
-            display_name=participant.display_name,
-            user_id=None,
-        ),
-        claim_token=participant.claim_token,
-        tab=_public_tab_out(db, tab),
-    )
+    return _join_response(db, tab, participant)
 
 
 @router.post(

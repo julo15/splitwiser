@@ -263,12 +263,24 @@ class TabParticipant(Base):
     # "Maya"s on one tab are unusable however they got there — and a second
     # row for someone already seated silently strands their claims. Compared
     # case-insensitively because "maya" and "Maya" are the same person to
-    # everybody reading the board. Mirrors the migration's unique index.
+    # everybody reading the board.
+    #
+    # An account is the same invariant on the other axis: seating one twice
+    # would put two splits for one user on the closed expense. NULL repeats
+    # freely under a unique index, so anonymous seats are unaffected.
+    #
+    # Both mirror the migration's indexes.
     __table_args__ = (
         Index(
             "ux_tab_participants_tab_name",
             "tab_id",
             func.lower(display_name),
+            unique=True,
+        ),
+        Index(
+            "ux_tab_participants_tab_user",
+            "tab_id",
+            "user_id",
             unique=True,
         ),
     )

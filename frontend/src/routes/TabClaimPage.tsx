@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Check, Percent, PencilSimple } from '@phosphor-icons/react';
 import { Button, Money } from '../components/ui';
+import { useAuth } from '../AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { publicTabsApi } from '../services/api';
 import { computeTabShares } from '../utils/tabShares';
@@ -43,17 +44,25 @@ function saveIdentity(shareToken: string, identity: StoredIdentity) {
  *
  * Rendered outside the app shell and without auth — the share token is the
  * only credential, and most people opening this will never have an account.
+ * Somebody who does have one is recognised anyway: their seat carries their
+ * account, so closing the tab puts the bill in their balances and on the
+ * payer's person page instead of leaving a guest line to chase.
  */
 const TabClaimPage: React.FC = () => {
     const { shareToken = '' } = useParams<{ shareToken: string }>();
+    const { user, loading: authLoading } = useAuth();
 
     const [tab, setTab] = useState<PublicTab | null>(null);
     const [identity, setIdentity] = useState<StoredIdentity | null>(null);
     const [name, setName] = useState('');
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
+    const [seating, setSeating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [renaming, setRenaming] = useState(false);
+    // One shot: if seating this account fails — their name is already at the
+    // table, say — fall back to the form rather than retrying on every poll.
+    const seatingAttempted = useRef(false);
 
     usePageTitle(tab ? `${tab.name} — what did you have?` : 'Claim your items');
 
@@ -79,6 +88,53 @@ const TabClaimPage: React.FC = () => {
         const timer = setInterval(load, 5000);
         return () => clearInterval(timer);
     }, [tab, load]);
+
+    /**
+     * Seat a signed-in visitor as themselves, without asking.
+     *
+     * They already told us who they are by being logged in, and the account on
+     * the seat is what makes their share a real debt at close rather than a
+     * guest line. If they have been claiming anonymously on this device, the
+     * seat they are using is adopted so their picks come with them.
+     */
+    useEffect(() => {
+        if (authLoading || !user || !tab || tab.status !== 'open') return;
+        if (seatingAttempted.current) return;
+
+        const seat = identity
+            ? tab.participants.find((p) => p.id === identity.participantId)
+            : undefined;
+        if (seat?.user_id === user.id) return; // Already sitting here as me.
+
+        seatingAttempted.current = true;
+        const claimToken =
+            seat && seat.user_id === null ? identity?.claimToken : undefined;
+
+        (async () => {
+            setSeating(true);
+            try {
+                const result: TabJoinResponse = await publicTabsApi.join(shareToken, {
+                    claimToken,
+                    withAuth: true,
+                });
+                const next = {
+                    claimToken: result.claim_token,
+                    participantId: result.participant.id,
+                    displayName: result.participant.display_name,
+                };
+                saveIdentity(shareToken, next);
+                setIdentity(next);
+                setTab(result.tab);
+            } catch (err) {
+                // Usually their account name is already at the table. The name
+                // form below takes it from here, and joining from it still
+                // carries the account.
+                setError(err instanceof Error ? err.message : 'Could not join');
+            } finally {
+                setSeating(false);
+            }
+        })();
+    }, [authLoading, user, tab, identity, shareToken]);
 
     const shareItems = useMemo(
         () =>
@@ -132,7 +188,9 @@ const TabClaimPage: React.FC = () => {
             } else {
                 const result: TabJoinResponse = await publicTabsApi.join(
                     shareToken,
-                    wanted
+                    // Signed in but typing a name — because the account's name
+                    // was taken, usually. The seat is still theirs.
+                    { displayName: wanted, withAuth: Boolean(user) }
                 );
                 const next = {
                     claimToken: result.claim_token,
@@ -177,7 +235,9 @@ const TabClaimPage: React.FC = () => {
         }
     };
 
-    if (loading) {
+    // Seating a signed-in visitor counts as loading: flashing the name form at
+    // someone who is about to be recognised would ask a question we can answer.
+    if (loading || authLoading || seating) {
         return (
             <div className="min-h-screen bg-sw-bg text-sw-text font-sans flex items-center justify-center">
                 <p className="text-sm text-sw-muted">Loading…</p>
@@ -258,6 +318,11 @@ const TabClaimPage: React.FC = () => {
                                 on them.
                             </p>
                         </>
+                    ) : user ? (
+                        <p className="text-[11.5px] text-sw-dim text-center">
+                            This still goes on your account — the name is just what
+                            the table sees.
+                        </p>
                     ) : (
                         <p className="text-[11.5px] text-sw-dim text-center">
                             No account needed. You can make one later and we'll attach
@@ -273,9 +338,9 @@ const TabClaimPage: React.FC = () => {
 
     // The server holds the name; what is in localStorage is a stale copy of it
     // as soon as the host renames someone from the board.
-    const myName =
-        participantsById.get(identity.participantId)?.display_name ??
-        identity.displayName;
+    const mySeat = participantsById.get(identity.participantId);
+    const myName = mySeat?.display_name ?? identity.displayName;
+    const onMyAccount = Boolean(user) && mySeat?.user_id === user?.id;
 
     return (
         <div className="min-h-screen bg-sw-bg text-sw-text font-sans flex flex-col">
@@ -307,7 +372,9 @@ const TabClaimPage: React.FC = () => {
                             <span className="font-medium">{myName}</span>
                         </span>
                         <span className="block text-[11.5px] text-sw-dim">
-                            No account needed — tap to use a different name
+                            {onMyAccount
+                                ? 'Goes on your account — tap to use a different name'
+                                : 'No account needed — tap to use a different name'}
                         </span>
                     </span>
                     <PencilSimple size={16} className="text-sw-dim flex-none" />

@@ -20,9 +20,9 @@ def _tab_participants_db(path, rows):
             """
         )
         connection.executemany(
-            "INSERT INTO tab_participants (tab_id, display_name, claim_token, joined_at)"
-            " VALUES (?, ?, ?, '2026-01-01')",
-            rows,
+            "INSERT INTO tab_participants (tab_id, display_name, claim_token,"
+            " user_id, joined_at) VALUES (?, ?, ?, ?, '2026-01-01')",
+            [(*row, None) if len(row) == 3 else row for row in rows],
         )
 
 
@@ -103,6 +103,37 @@ def test_tab_name_migration_clears_duplicates_and_is_idempotent(tmp_path):
             pass
         else:
             raise AssertionError("a duplicate name was accepted")
+
+
+def test_tab_name_migration_detaches_a_repeated_account(tmp_path):
+    """
+    No released code path seats one account twice, but the index cannot be
+    created if one ever did — and a failure here stops the container booting.
+    """
+    db_path = tmp_path / "splitwiser.sqlite3"
+    _tab_participants_db(
+        db_path,
+        [
+            (1, "Vince", "t1", 7),
+            (1, "Vince from work", "t2", 7),
+            (1, "Maya", "t3", 8),
+            (2, "Vince", "t4", 7),
+        ],
+    )
+
+    assert migrate_tab_names(str(db_path)) == 0
+
+    with sqlite3.connect(db_path) as connection:
+        seats = dict(
+            connection.execute("SELECT claim_token, user_id FROM tab_participants")
+        )
+
+    # The later seat keeps its claims, just not the account.
+    assert seats["t1"] == 7
+    assert seats["t2"] is None
+    assert seats["t3"] == 8
+    # Another tab may of course seat the same account.
+    assert seats["t4"] == 7
 
 
 def test_tab_name_migration_on_a_database_without_tabs(tmp_path):

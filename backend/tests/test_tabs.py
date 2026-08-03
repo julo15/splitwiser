@@ -451,6 +451,215 @@ class TestParticipantIdentity:
         assert joined["participant"]["display_name"] == "Maya"
 
 
+class TestSignedInClaimers:
+    """
+    An account on the seat is what turns a claimer's share into an
+    ExpenseSplit at close — so it reaches their balances — instead of an
+    ExpenseGuest the payer has to chase in person.
+    """
+
+    def test_joining_signed_in_seats_the_account_and_its_name(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        maya = register(client, "maya@example.com", "Maya Lin")
+
+        response = client.post(
+            f"/public/tabs/{tab['share_token']}/join", json={}, headers=maya
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["participant"]["display_name"] == "Maya Lin"
+        assert body["participant"]["user_id"] is not None
+        # Still handed a claim token: the public claim route is all this page has.
+        assert body["claim_token"]
+
+    def test_a_typed_name_still_wins_over_the_account_name(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        maya = register(client, "maya@example.com", "Maya Lin")
+
+        body = client.post(
+            f"/public/tabs/{tab['share_token']}/join",
+            json={"display_name": "Maya"},
+            headers=maya,
+        ).json()
+        assert body["participant"]["display_name"] == "Maya"
+        assert body["participant"]["user_id"] is not None
+
+    def test_the_host_opening_their_own_link_is_not_seated_twice(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+
+        body = client.post(
+            f"/public/tabs/{tab['share_token']}/join", json={}, headers=headers
+        ).json()
+        assert body["participant"]["id"] == tab["participants"][0]["id"]
+        assert len(body["tab"]["participants"]) == 1
+        # And they get the token they need to claim from this page.
+        assert body["claim_token"]
+
+    def test_rejoining_on_another_device_returns_the_same_seat(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        maya = register(client, "maya@example.com", "Maya Lin")
+        token = tab["share_token"]
+
+        first = client.post(f"/public/tabs/{token}/join", json={}, headers=maya).json()
+        client.post(
+            f"/public/tabs/{token}/items/{tab['items'][0]['id']}/claim",
+            json={"claim_token": first["claim_token"], "claimed": True},
+        )
+
+        # A second phone has no localStorage, so it joins again. The account,
+        # not the browser, says who they are.
+        second = client.post(f"/public/tabs/{token}/join", json={}, headers=maya).json()
+        assert second["participant"]["id"] == first["participant"]["id"]
+        assert len(second["tab"]["participants"]) == 2
+        claimed = next(
+            i for i in second["tab"]["items"] if i["id"] == tab["items"][0]["id"]
+        )
+        assert claimed["claimed_by"] == [first["participant"]["id"]]
+
+    def test_signing_in_mid_tab_keeps_the_claims_made_as_a_guest(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        token, item_id = tab["share_token"], tab["items"][0]["id"]
+
+        guest = client.post(
+            f"/public/tabs/{token}/join", json={"display_name": "Maya"}
+        ).json()
+        client.post(
+            f"/public/tabs/{token}/items/{item_id}/claim",
+            json={"claim_token": guest["claim_token"], "claimed": True},
+        )
+
+        maya = register(client, "maya@example.com", "Maya Lin")
+        adopted = client.post(
+            f"/public/tabs/{token}/join",
+            json={"claim_token": guest["claim_token"]},
+            headers=maya,
+        ).json()
+
+        # Same seat, now theirs — with the line they ticked as a guest.
+        assert adopted["participant"]["id"] == guest["participant"]["id"]
+        assert adopted["participant"]["user_id"] is not None
+        assert adopted["participant"]["display_name"] == "Maya"
+        assert len(adopted["tab"]["participants"]) == 2
+        claimed = next(i for i in adopted["tab"]["items"] if i["id"] == item_id)
+        assert claimed["claimed_by"] == [guest["participant"]["id"]]
+
+    def test_a_seat_that_belongs_to_another_account_is_not_adopted(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        token = tab["share_token"]
+
+        maya = register(client, "maya@example.com", "Maya Lin")
+        hers = client.post(f"/public/tabs/{token}/join", json={}, headers=maya).json()
+
+        # Sam somehow holds Maya's claim token; it must not make him Maya.
+        sam = register(client, "sam@example.com", "Sam Reed")
+        response = client.post(
+            f"/public/tabs/{token}/join",
+            json={"claim_token": hers["claim_token"]},
+            headers=sam,
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["participant"]["id"] != hers["participant"]["id"]
+        assert body["participant"]["display_name"] == "Sam Reed"
+
+    def test_an_expired_token_is_told_rather_than_seated_as_a_guest(self, client):
+        """
+        Quietly downgrading them would put their share on a guest row and lose
+        the association they came for; a 401 lets the client refresh and retry.
+        """
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+
+        response = client.post(
+            f"/public/tabs/{tab['share_token']}/join",
+            json={"display_name": "Maya"},
+            headers={"Authorization": "Bearer not-a-real-token"},
+        )
+        assert response.status_code == 401
+
+    def test_an_account_name_already_at_the_table_is_refused(self, client):
+        """The claim page falls back to asking for a name."""
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        client.post(
+            f"/public/tabs/{tab['share_token']}/join", json={"display_name": "Maya Lin"}
+        )
+
+        maya = register(client, "maya@example.com", "Maya Lin")
+        response = client.post(
+            f"/public/tabs/{tab['share_token']}/join", json={}, headers=maya
+        )
+        assert response.status_code == 409
+
+    def test_an_anonymous_join_still_needs_a_name(self, client):
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+
+        response = client.post(f"/public/tabs/{tab['share_token']}/join", json={})
+        assert response.status_code == 400
+
+    def test_the_schema_refuses_a_second_seat_for_one_account(self, client, db_session):
+        from sqlalchemy.exc import IntegrityError
+
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(client, headers)
+        owner_id = tab["created_by_id"]
+
+        db_session.add(
+            models.TabParticipant(
+                tab_id=tab["id"],
+                display_name="Vince again",
+                user_id=owner_id,
+                claim_token="another-token",
+            )
+        )
+        with pytest.raises(IntegrityError):
+            db_session.commit()
+        db_session.rollback()
+
+    def test_a_signed_in_claimers_share_lands_in_their_balances(self, client):
+        """
+        The point of the whole exercise: the closed tab is a real shared
+        expense between two accounts, not a guest line only the payer sees.
+        """
+        headers = register(client, "vince@example.com", "Vince Woo")
+        tab = make_tab(
+            client,
+            headers,
+            items=[{"description": "Pizza margherita", "price": 2000}],
+            tax=0,
+            tip=0,
+            total=2000,
+        )
+        token = tab["share_token"]
+
+        maya = register(client, "maya@example.com", "Maya Lin")
+        joined = client.post(f"/public/tabs/{token}/join", json={}, headers=maya).json()
+        client.post(
+            f"/public/tabs/{token}/items/{tab['items'][0]['id']}/claim",
+            json={"claim_token": joined["claim_token"], "claimed": True},
+        )
+
+        closed = client.post(f"/tabs/{tab['id']}/close", json={}, headers=headers)
+        assert closed.status_code == 200, closed.text
+
+        # Maya owes Vince the whole line, and both of them can see it. Negative
+        # is "you owe"; the amounts are cents, as everywhere else.
+        hers = client.get("/balances", headers=maya).json()
+        owed = [b for b in hers["balances"] if b["full_name"] == "Vince Woo"]
+        assert owed and owed[0]["amount"] == pytest.approx(-2000.0)
+
+        his = client.get("/balances", headers=headers).json()
+        owed_to_him = [b for b in his["balances"] if b["full_name"] == "Maya Lin"]
+        assert owed_to_him and owed_to_him[0]["amount"] == pytest.approx(2000.0)
+
+
 class TestManualItems:
     def test_the_owner_can_add_a_line_to_a_live_tab(self, client):
         headers = register(client, "vince@example.com", "Vince Woo")
