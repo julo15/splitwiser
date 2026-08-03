@@ -261,7 +261,9 @@ place.
 - `TabBreakdown.tsx` - what each person owes and why: their lines, their share
   of anything unclaimed, their tax and tip. Rows expand; the viewer's own opens
   first. Exports `TabWorking`, the one-person half of it, for the claim screen.
-- `TabProgress.tsx` - how much of the bill is spoken for
+- `TabProgress.tsx` - how much of the bill is spoken for. Item value only, on
+  both sides of the counter: tax and tip are never claimed, they ride along on
+  whatever each person picked, so a fully claimed tab reads 100%
 - `ClaimerStack.tsx` - overlapping avatars on a claimed line
 - `QrCode.tsx` - the share link as a QR. Everyone is at the same table, so a
   code on the host's screen beats sending four messages.

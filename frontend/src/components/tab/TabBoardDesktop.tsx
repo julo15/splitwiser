@@ -15,7 +15,8 @@ export interface TabBoardDesktopProps {
     shares: Record<number, number>;
     claimed: number;
     unclaimed: number;
-    billTotal: number;
+    /** Claimed plus unclaimed lines — the bill without tax and tip. */
+    itemsTotal: number;
     error: string | null;
     onToggleClaim: (itemId: number, participantId: number, claimed: boolean) => void;
     onAddItem: (description: string, cents: number) => void;
@@ -50,7 +51,7 @@ const TabBoardDesktop: React.FC<TabBoardDesktopProps> = ({
     shares,
     claimed,
     unclaimed,
-    billTotal,
+    itemsTotal,
     error,
     onToggleClaim,
     onAddItem,
@@ -137,7 +138,7 @@ const TabBoardDesktop: React.FC<TabBoardDesktopProps> = ({
 
                     <TabProgress
                         claimed={claimed}
-                        total={billTotal}
+                        itemsTotal={itemsTotal}
                         unclaimed={unclaimed}
                         unclaimedCount={unclaimedIds.size}
                         currency={tab.currency}
